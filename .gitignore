@@ -1,11 +1,12 @@
-.DS_Store
 .idea/
 .ai/
 LLG/
+token-monitor/
 Personal/douyin-video/output/
-Personal/douyin-video/*.mp4
 .claude/
+Personal/douyin-video/*.mp4
+.DS_Store
 *.swp
 settings.jsondeepseek
 settings.jsonxiaomi
-token-monitor/
+BI新人必读.docx

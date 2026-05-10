@@ -1,0 +1,2490 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<job>
+  <name>OA数据抽取</name>
+  <description />
+  <extended_description />
+  <job_version />
+  <job_status>0</job_status>
+  <directory>/</directory>
+  <created_user>-</created_user>
+  <created_date>2018/01/16 14:43:15.121</created_date>
+  <modified_user>-</modified_user>
+  <modified_date>2018/01/16 14:43:15.121</modified_date>
+  <parameters>
+    </parameters>
+  <connection>
+    <name>finereport_fbdbuser</name>
+    <server>10.31.52.24</server>
+    <type>ORACLE</type>
+    <access>Native</access>
+    <database>ORCL</database>
+    <port>1521</port>
+    <username>fbdbuser</username>
+    <password>Encrypted 2be98e7af009f9988b84ffa2887948bfc</password>
+    <servername />
+    <data_tablespace />
+    <index_tablespace />
+    <attributes>
+      <attribute>
+        <code>FORCE_IDENTIFIERS_TO_LOWERCASE</code>
+        <attribute>N</attribute>
+      </attribute>
+      <attribute>
+        <code>FORCE_IDENTIFIERS_TO_UPPERCASE</code>
+        <attribute>N</attribute>
+      </attribute>
+      <attribute>
+        <code>IS_CLUSTERED</code>
+        <attribute>N</attribute>
+      </attribute>
+      <attribute>
+        <code>PORT_NUMBER</code>
+        <attribute>1521</attribute>
+      </attribute>
+      <attribute>
+        <code>PRESERVE_RESERVED_WORD_CASE</code>
+        <attribute>Y</attribute>
+      </attribute>
+      <attribute>
+        <code>QUOTE_ALL_FIELDS</code>
+        <attribute>N</attribute>
+      </attribute>
+      <attribute>
+        <code>SUPPORTS_BOOLEAN_DATA_TYPE</code>
+        <attribute>Y</attribute>
+      </attribute>
+      <attribute>
+        <code>SUPPORTS_TIMESTAMP_DATA_TYPE</code>
+        <attribute>Y</attribute>
+      </attribute>
+      <attribute>
+        <code>USE_POOLING</code>
+        <attribute>N</attribute>
+      </attribute>
+    </attributes>
+  </connection>
+  <slaveservers>
+    </slaveservers>
+  <job-log-table>
+    <connection />
+    <schema />
+    <table />
+    <size_limit_lines />
+    <interval />
+    <timeout_days />
+    <field>
+      <id>ID_JOB</id>
+      <enabled>Y</enabled>
+      <name>ID_JOB</name>
+    </field>
+    <field>
+      <id>CHANNEL_ID</id>
+      <enabled>Y</enabled>
+      <name>CHANNEL_ID</name>
+    </field>
+    <field>
+      <id>JOBNAME</id>
+      <enabled>Y</enabled>
+      <name>JOBNAME</name>
+    </field>
+    <field>
+      <id>STATUS</id>
+      <enabled>Y</enabled>
+      <name>STATUS</name>
+    </field>
+    <field>
+      <id>LINES_READ</id>
+      <enabled>Y</enabled>
+      <name>LINES_READ</name>
+    </field>
+    <field>
+      <id>LINES_WRITTEN</id>
+      <enabled>Y</enabled>
+      <name>LINES_WRITTEN</name>
+    </field>
+    <field>
+      <id>LINES_UPDATED</id>
+      <enabled>Y</enabled>
+      <name>LINES_UPDATED</name>
+    </field>
+    <field>
+      <id>LINES_INPUT</id>
+      <enabled>Y</enabled>
+      <name>LINES_INPUT</name>
+    </field>
+    <field>
+      <id>LINES_OUTPUT</id>
+      <enabled>Y</enabled>
+      <name>LINES_OUTPUT</name>
+    </field>
+    <field>
+      <id>LINES_REJECTED</id>
+      <enabled>Y</enabled>
+      <name>LINES_REJECTED</name>
+    </field>
+    <field>
+      <id>ERRORS</id>
+      <enabled>Y</enabled>
+      <name>ERRORS</name>
+    </field>
+    <field>
+      <id>STARTDATE</id>
+      <enabled>Y</enabled>
+      <name>STARTDATE</name>
+    </field>
+    <field>
+      <id>ENDDATE</id>
+      <enabled>Y</enabled>
+      <name>ENDDATE</name>
+    </field>
+    <field>
+      <id>LOGDATE</id>
+      <enabled>Y</enabled>
+      <name>LOGDATE</name>
+    </field>
+    <field>
+      <id>DEPDATE</id>
+      <enabled>Y</enabled>
+      <name>DEPDATE</name>
+    </field>
+    <field>
+      <id>REPLAYDATE</id>
+      <enabled>Y</enabled>
+      <name>REPLAYDATE</name>
+    </field>
+    <field>
+      <id>LOG_FIELD</id>
+      <enabled>Y</enabled>
+      <name>LOG_FIELD</name>
+    </field>
+    <field>
+      <id>EXECUTING_SERVER</id>
+      <enabled>N</enabled>
+      <name>EXECUTING_SERVER</name>
+    </field>
+    <field>
+      <id>EXECUTING_USER</id>
+      <enabled>N</enabled>
+      <name>EXECUTING_USER</name>
+    </field>
+    <field>
+      <id>START_JOB_ENTRY</id>
+      <enabled>N</enabled>
+      <name>START_JOB_ENTRY</name>
+    </field>
+    <field>
+      <id>CLIENT</id>
+      <enabled>N</enabled>
+      <name>CLIENT</name>
+    </field>
+  </job-log-table>
+  <jobentry-log-table>
+    <connection />
+    <schema />
+    <table />
+    <timeout_days />
+    <field>
+      <id>ID_BATCH</id>
+      <enabled>Y</enabled>
+      <name>ID_BATCH</name>
+    </field>
+    <field>
+      <id>CHANNEL_ID</id>
+      <enabled>Y</enabled>
+      <name>CHANNEL_ID</name>
+    </field>
+    <field>
+      <id>LOG_DATE</id>
+      <enabled>Y</enabled>
+      <name>LOG_DATE</name>
+    </field>
+    <field>
+      <id>JOBNAME</id>
+      <enabled>Y</enabled>
+      <name>TRANSNAME</name>
+    </field>
+    <field>
+      <id>JOBENTRYNAME</id>
+      <enabled>Y</enabled>
+      <name>STEPNAME</name>
+    </field>
+    <field>
+      <id>LINES_READ</id>
+      <enabled>Y</enabled>
+      <name>LINES_READ</name>
+    </field>
+    <field>
+      <id>LINES_WRITTEN</id>
+      <enabled>Y</enabled>
+      <name>LINES_WRITTEN</name>
+    </field>
+    <field>
+      <id>LINES_UPDATED</id>
+      <enabled>Y</enabled>
+      <name>LINES_UPDATED</name>
+    </field>
+    <field>
+      <id>LINES_INPUT</id>
+      <enabled>Y</enabled>
+      <name>LINES_INPUT</name>
+    </field>
+    <field>
+      <id>LINES_OUTPUT</id>
+      <enabled>Y</enabled>
+      <name>LINES_OUTPUT</name>
+    </field>
+    <field>
+      <id>LINES_REJECTED</id>
+      <enabled>Y</enabled>
+      <name>LINES_REJECTED</name>
+    </field>
+    <field>
+      <id>ERRORS</id>
+      <enabled>Y</enabled>
+      <name>ERRORS</name>
+    </field>
+    <field>
+      <id>RESULT</id>
+      <enabled>Y</enabled>
+      <name>RESULT</name>
+    </field>
+    <field>
+      <id>NR_RESULT_ROWS</id>
+      <enabled>Y</enabled>
+      <name>NR_RESULT_ROWS</name>
+    </field>
+    <field>
+      <id>NR_RESULT_FILES</id>
+      <enabled>Y</enabled>
+      <name>NR_RESULT_FILES</name>
+    </field>
+    <field>
+      <id>LOG_FIELD</id>
+      <enabled>N</enabled>
+      <name>LOG_FIELD</name>
+    </field>
+    <field>
+      <id>COPY_NR</id>
+      <enabled>N</enabled>
+      <name>COPY_NR</name>
+    </field>
+  </jobentry-log-table>
+  <channel-log-table>
+    <connection />
+    <schema />
+    <table />
+    <timeout_days />
+    <field>
+      <id>ID_BATCH</id>
+      <enabled>Y</enabled>
+      <name>ID_BATCH</name>
+    </field>
+    <field>
+      <id>CHANNEL_ID</id>
+      <enabled>Y</enabled>
+      <name>CHANNEL_ID</name>
+    </field>
+    <field>
+      <id>LOG_DATE</id>
+      <enabled>Y</enabled>
+      <name>LOG_DATE</name>
+    </field>
+    <field>
+      <id>LOGGING_OBJECT_TYPE</id>
+      <enabled>Y</enabled>
+      <name>LOGGING_OBJECT_TYPE</name>
+    </field>
+    <field>
+      <id>OBJECT_NAME</id>
+      <enabled>Y</enabled>
+      <name>OBJECT_NAME</name>
+    </field>
+    <field>
+      <id>OBJECT_COPY</id>
+      <enabled>Y</enabled>
+      <name>OBJECT_COPY</name>
+    </field>
+    <field>
+      <id>REPOSITORY_DIRECTORY</id>
+      <enabled>Y</enabled>
+      <name>REPOSITORY_DIRECTORY</name>
+    </field>
+    <field>
+      <id>FILENAME</id>
+      <enabled>Y</enabled>
+      <name>FILENAME</name>
+    </field>
+    <field>
+      <id>OBJECT_ID</id>
+      <enabled>Y</enabled>
+      <name>OBJECT_ID</name>
+    </field>
+    <field>
+      <id>OBJECT_REVISION</id>
+      <enabled>Y</enabled>
+      <name>OBJECT_REVISION</name>
+    </field>
+    <field>
+      <id>PARENT_CHANNEL_ID</id>
+      <enabled>Y</enabled>
+      <name>PARENT_CHANNEL_ID</name>
+    </field>
+    <field>
+      <id>ROOT_CHANNEL_ID</id>
+      <enabled>Y</enabled>
+      <name>ROOT_CHANNEL_ID</name>
+    </field>
+  </channel-log-table>
+  <pass_batchid>N</pass_batchid>
+  <shared_objects_file />
+  <entries>
+    <entry>
+      <name>主数据插入主表临时表</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/NC客户抽取插入临时表.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>176</xloc>
+      <yloc>128</yloc>
+    </entry>
+    <entry>
+      <name>修改数据插入主表临时表</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/OA客户抽取修改临时表.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>320</xloc>
+      <yloc>128</yloc>
+    </entry>
+    <entry>
+      <name>插入主表</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/临时表插入主表.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>624</xloc>
+      <yloc>128</yloc>
+    </entry>
+    <entry>
+      <name>插入更新时间</name>
+      <description />
+      <type>SQL</type>
+      <sql>INSERT INTO OA_LOG(OA_TIME)
+VALUES(TO_CHAR(SYSDATE,'yyyy-mm-dd'));
+</sql>
+      <useVariableSubstitution>F</useVariableSubstitution>
+      <sqlfromfile>F</sqlfromfile>
+      <sqlfilename />
+      <sendOneStatement>F</sendOneStatement>
+      <connection>finereport_fbdbuser</connection>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>752</xloc>
+      <yloc>128</yloc>
+    </entry>
+    <entry>
+      <name>删除主表重复</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/删除OA客户重复值.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>480</xloc>
+      <yloc>128</yloc>
+    </entry>
+    <entry>
+      <name>START</name>
+      <description />
+      <type>SPECIAL</type>
+      <start>Y</start>
+      <dummy>N</dummy>
+      <repeat>N</repeat>
+      <schedulerType>0</schedulerType>
+      <intervalSeconds>0</intervalSeconds>
+      <intervalMinutes>60</intervalMinutes>
+      <hour>12</hour>
+      <minutes>0</minutes>
+      <weekDay>1</weekDay>
+      <DayOfMonth>1</DayOfMonth>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>16</xloc>
+      <yloc>640</yloc>
+    </entry>
+    <entry>
+      <name>抽取生产经营指标临时表</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/抽取生产经营指标填报流程数据（临时）.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>176</xloc>
+      <yloc>208</yloc>
+    </entry>
+    <entry>
+      <name>抽取生产经营指标正式表</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/抽取生产经营指标填报流程数据（正式）.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>320</xloc>
+      <yloc>208</yloc>
+    </entry>
+    <entry>
+      <name>抽取生产经营指标预算数据</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/抽取生产经营指标预算填报数据.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>480</xloc>
+      <yloc>208</yloc>
+    </entry>
+    <entry>
+      <name>插入更新时间 (2)</name>
+      <description />
+      <type>SQL</type>
+      <sql>INSERT INTO SJ_SJGX(SJB,GXSJ)
+VALUES('OA_SCJYZB',TO_CHAR(SYSDATE,'yyyy-mm-dd hh24:mi:ss'));</sql>
+      <useVariableSubstitution>F</useVariableSubstitution>
+      <sqlfromfile>F</sqlfromfile>
+      <sqlfilename />
+      <sendOneStatement>F</sendOneStatement>
+      <connection>finereport_fbdbuser</connection>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>624</xloc>
+      <yloc>208</yloc>
+    </entry>
+    <entry>
+      <name>抽取生产经营指标明细表-临时</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/抽取生产经营指标填报流程数据（明细表结构-临时）.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>176</xloc>
+      <yloc>272</yloc>
+    </entry>
+    <entry>
+      <name>抽取生产经营指标明细表-正式</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/抽取生产经营指标填报流程数据（明细表结构-正式）.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>480</xloc>
+      <yloc>272</yloc>
+    </entry>
+    <entry>
+      <name>抽取经营指标预算明细</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/抽取生产经营指标预算填报数据（明细表结构）.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>640</xloc>
+      <yloc>272</yloc>
+    </entry>
+    <entry>
+      <name>插入更新时间 (3)</name>
+      <description />
+      <type>SQL</type>
+      <sql>INSERT INTO SJ_SJGX(SJB,GXSJ)
+VALUES('OA_SCJYZBMX',TO_CHAR(SYSDATE,'yyyy-mm-dd hh24:mi:ss'));</sql>
+      <useVariableSubstitution>F</useVariableSubstitution>
+      <sqlfromfile>F</sqlfromfile>
+      <sqlfilename />
+      <sendOneStatement>F</sendOneStatement>
+      <connection>finereport_fbdbuser</connection>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>1056</xloc>
+      <yloc>272</yloc>
+    </entry>
+    <entry>
+      <name>抽取NC各公司每月产量</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/抽取NC系统各公司每月生产数据.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>320</xloc>
+      <yloc>272</yloc>
+    </entry>
+    <entry>
+      <name>抽取投诉分析主表</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>F:\ETL\OA\品控类流程\抽取投诉分析报告数据（主表）.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>176</xloc>
+      <yloc>336</yloc>
+    </entry>
+    <entry>
+      <name>抽取投诉分析明细表1</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>F:\ETL\OA\品控类流程\抽取投诉分析报告数据（明细表1） .ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>320</xloc>
+      <yloc>336</yloc>
+    </entry>
+    <entry>
+      <name>抽取投诉分析明细表2</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>F:\ETL\OA\品控类流程\抽取投诉分析报告数据（明细表2）.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>480</xloc>
+      <yloc>336</yloc>
+    </entry>
+    <entry>
+      <name>抽取每月降本金额</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/抽取各公司生产经营每月降本金额数据.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>768</xloc>
+      <yloc>272</yloc>
+    </entry>
+    <entry>
+      <name>抽取每月预算降本金额</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/抽取各公司生产经营每月预算降本金额数据.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>912</xloc>
+      <yloc>272</yloc>
+    </entry>
+    <entry>
+      <name>抽取客户提货委托书</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/抽取客户提货委托书.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>176</xloc>
+      <yloc>16</yloc>
+    </entry>
+    <entry>
+      <name>成功 2</name>
+      <description />
+      <type>SUCCESS</type>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>320</xloc>
+      <yloc>16</yloc>
+    </entry>
+    <entry>
+      <name>客户提货委托书插入时间</name>
+      <description />
+      <type>SQL</type>
+      <sql>INSERT INTO SJ_SJGX(SJB,GXSJ)
+VALUES('OA_KHTHWTS',TO_CHAR(SYSDATE,'yyyy-mm-dd hh24:mi:ss'));</sql>
+      <useVariableSubstitution>F</useVariableSubstitution>
+      <sqlfromfile>F</sqlfromfile>
+      <sqlfilename />
+      <sendOneStatement>F</sendOneStatement>
+      <connection>finereport_fbdbuser</connection>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>1</nr>
+      <xloc>480</xloc>
+      <yloc>16</yloc>
+    </entry>
+    <entry>
+      <name>抽取呆滞成品数据</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/抽取呆滞成品流程数据.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>176</xloc>
+      <yloc>416</yloc>
+    </entry>
+    <entry>
+      <name>成功 4</name>
+      <description />
+      <type>SUCCESS</type>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>640</xloc>
+      <yloc>336</yloc>
+    </entry>
+    <entry>
+      <name>抽取呆滞原料数据</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/抽取呆滞原料流程数据.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>320</xloc>
+      <yloc>416</yloc>
+    </entry>
+    <entry>
+      <name>抽取销售订单相关单据操作分析</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>F:\ETL\档案类\转换\抽取销售相关订单分析数据-H.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>176</xloc>
+      <yloc>496</yloc>
+    </entry>
+    <entry>
+      <name>成功 5</name>
+      <description />
+      <type>SUCCESS</type>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>320</xloc>
+      <yloc>496</yloc>
+    </entry>
+    <entry>
+      <name>插入更新时间 (4)</name>
+      <description />
+      <type>SQL</type>
+      <sql>INSERT INTO SJ_SJGX(SJB,GXSJ)
+VALUES('XS_SJFX',TO_CHAR(SYSDATE,'yyyy-mm-dd hh24:mi:ss'));</sql>
+      <useVariableSubstitution>F</useVariableSubstitution>
+      <sqlfromfile>F</sqlfromfile>
+      <sqlfilename />
+      <sendOneStatement>F</sendOneStatement>
+      <connection>finereport_fbdbuser</connection>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>480</xloc>
+      <yloc>496</yloc>
+    </entry>
+    <entry>
+      <name>抽取每日生产计划填报数据</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/抽取每日生产计划填报数据.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>480</xloc>
+      <yloc>416</yloc>
+    </entry>
+    <entry>
+      <name>成功 3</name>
+      <description />
+      <type>SUCCESS</type>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>640</xloc>
+      <yloc>416</yloc>
+    </entry>
+    <entry>
+      <name>抽取设备管理情况数据（报表）</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/抽取设备管理情况数据（报表）.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>176</xloc>
+      <yloc>576</yloc>
+    </entry>
+    <entry>
+      <name>插入更新时间 (5)</name>
+      <description />
+      <type>SQL</type>
+      <sql>INSERT INTO SJ_SJGX(SJB,GXSJ)
+VALUES('OA_SBGLQK',TO_CHAR(SYSDATE,'yyyy-mm-dd hh24:mi:ss'));</sql>
+      <useVariableSubstitution>F</useVariableSubstitution>
+      <sqlfromfile>F</sqlfromfile>
+      <sqlfilename />
+      <sendOneStatement>F</sendOneStatement>
+      <connection>finereport_fbdbuser</connection>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>656</xloc>
+      <yloc>576</yloc>
+    </entry>
+    <entry>
+      <name>抽取休假申请流程数据</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>F:\ETL\OA\考勤管理\抽取请假流程数据.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>176</xloc>
+      <yloc>640</yloc>
+    </entry>
+    <entry>
+      <name>抽取销假申请流程</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>F:\ETL\OA\考勤管理\抽取销假流程数据.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>320</xloc>
+      <yloc>640</yloc>
+    </entry>
+    <entry>
+      <name>抽取加班流程数据</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>F:\ETL\OA\考勤管理\抽取加班流程数据.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>480</xloc>
+      <yloc>640</yloc>
+    </entry>
+    <entry>
+      <name>抽取出差流程数据</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>F:\ETL\OA\考勤管理\抽取出差流程数据.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>624</xloc>
+      <yloc>640</yloc>
+    </entry>
+    <entry>
+      <name>抽取漏签流程数据</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>F:\ETL\OA\考勤管理\抽取漏签流程数据.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>720</xloc>
+      <yloc>640</yloc>
+    </entry>
+    <entry>
+      <name>成功 7</name>
+      <description />
+      <type>SUCCESS</type>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>832</xloc>
+      <yloc>640</yloc>
+    </entry>
+    <entry>
+      <name>抽取销售单据删除明细</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>F:\ETL\档案类\转换\抽取销售相关订单删除明细-H.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>320</xloc>
+      <yloc>576</yloc>
+    </entry>
+    <entry>
+      <name>成功 6</name>
+      <description />
+      <type>SUCCESS</type>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>480</xloc>
+      <yloc>576</yloc>
+    </entry>
+    <entry>
+      <name>抽取印章保管人认定流程</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/抽取印章保管人认定流程.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>176</xloc>
+      <yloc>720</yloc>
+    </entry>
+    <entry>
+      <name>插入更新时间 (6) </name>
+      <description />
+      <type>SQL</type>
+      <sql>INSERT INTO SJ_SJGX(SJB,GXSJ)
+VALUES('OA_YZBGRRD',TO_CHAR(SYSDATE,'yyyy-mm-dd hh24:mi:ss'));
+INSERT INTO SJ_SJGX(SJB,GXSJ)
+VALUES('OA_GSZZBG' ,TO_CHAR(SYSDATE,'yyyy-mm-dd hh24:mi:ss'));</sql>
+      <useVariableSubstitution>F</useVariableSubstitution>
+      <sqlfromfile>F</sqlfromfile>
+      <sqlfilename />
+      <sendOneStatement>F</sendOneStatement>
+      <connection>finereport_fbdbuser</connection>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>656</xloc>
+      <yloc>720</yloc>
+    </entry>
+    <entry>
+      <name>抽取公司证照保管申请流程</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/抽取公司证照保管申请流程.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>320</xloc>
+      <yloc>720</yloc>
+    </entry>
+    <entry>
+      <name>成功 8</name>
+      <description />
+      <type>SUCCESS</type>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>480</xloc>
+      <yloc>720</yloc>
+    </entry>
+    <entry>
+      <name>生产事故质量报备与处理</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/QA004 生产事故质量报备与处理.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>176</xloc>
+      <yloc>800</yloc>
+    </entry>
+    <entry>
+      <name>插入更新时间 (7)</name>
+      <description />
+      <type>SQL</type>
+      <sql>INSERT INTO SJ_SJGX(SJB,GXSJ)
+VALUES('ZL_SGBB',TO_CHAR(SYSDATE,'yyyy-mm-dd hh24:mi:ss'));</sql>
+      <useVariableSubstitution>F</useVariableSubstitution>
+      <sqlfromfile>F</sqlfromfile>
+      <sqlfilename />
+      <sendOneStatement>F</sendOneStatement>
+      <connection>finereport_fbdbuser</connection>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>480</xloc>
+      <yloc>800</yloc>
+    </entry>
+    <entry>
+      <name>成功 9</name>
+      <description />
+      <type>SUCCESS</type>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>320</xloc>
+      <yloc>800</yloc>
+    </entry>
+    <entry>
+      <name>原材料包装物添加剂扣款和退货处理</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/QA015 原材料包装物添加剂扣款和退货处理.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>176</xloc>
+      <yloc>880</yloc>
+    </entry>
+    <entry>
+      <name>插入更新时间 (8)</name>
+      <description />
+      <type>SQL</type>
+      <sql>INSERT INTO SJ_SJGX(SJB,GXSJ)
+VALUES('ZL_YLTH',TO_CHAR(SYSDATE,'yyyy-mm-dd hh24:mi:ss'));</sql>
+      <useVariableSubstitution>F</useVariableSubstitution>
+      <sqlfromfile>F</sqlfromfile>
+      <sqlfilename />
+      <sendOneStatement>F</sendOneStatement>
+      <connection>finereport_fbdbuser</connection>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>480</xloc>
+      <yloc>880</yloc>
+    </entry>
+    <entry>
+      <name>成功 10</name>
+      <description />
+      <type>SUCCESS</type>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>320</xloc>
+      <yloc>880</yloc>
+    </entry>
+    <entry>
+      <name>客户投诉与售后处理申请</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>${Internal.Entry.Current.Directory}/QA001 客户投诉与售后处理申请.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>176</xloc>
+      <yloc>960</yloc>
+    </entry>
+    <entry>
+      <name>插入更新时间 (9) </name>
+      <description />
+      <type>SQL</type>
+      <sql>INSERT INTO SJ_SJGX(SJB,GXSJ)
+VALUES('ZL_KHTS',TO_CHAR(SYSDATE,'yyyy-mm-dd hh24:mi:ss'));</sql>
+      <useVariableSubstitution>F</useVariableSubstitution>
+      <sqlfromfile>F</sqlfromfile>
+      <sqlfilename />
+      <sendOneStatement>F</sendOneStatement>
+      <connection>finereport_fbdbuser</connection>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>480</xloc>
+      <yloc>960</yloc>
+    </entry>
+    <entry>
+      <name>成功 11</name>
+      <description />
+      <type>SUCCESS</type>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>320</xloc>
+      <yloc>960</yloc>
+    </entry>
+    <entry>
+      <name>作业</name>
+      <description />
+      <type>JOB</type>
+      <specification_method>filename</specification_method>
+      <job_object_id />
+      <filename>${Internal.Entry.Current.Directory}/月度原材料供应不及时跟踪表.kjb</filename>
+      <jobname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Nothing</loglevel>
+      <slave_server_name />
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <expand_remote_job>N</expand_remote_job>
+      <create_parent_folder>N</create_parent_folder>
+      <pass_export>N</pass_export>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <set_append_logfile>N</set_append_logfile>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>176</xloc>
+      <yloc>1040</yloc>
+    </entry>
+    <entry>
+      <name>成功 12</name>
+      <description />
+      <type>SUCCESS</type>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>320</xloc>
+      <yloc>1040</yloc>
+    </entry>
+    <entry>
+      <name>抽取OA设备管理巡检记录信息</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>F:\ETL\OA\设备管理\抽取OA设备管理巡检记录信息.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>176</xloc>
+      <yloc>1120</yloc>
+    </entry>
+    <entry>
+      <name>成功 13</name>
+      <description />
+      <type>SUCCESS</type>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>512</xloc>
+      <yloc>1120</yloc>
+    </entry>
+    <entry>
+      <name>抽取OA设备管理保养记录信息</name>
+      <description />
+      <type>TRANS</type>
+      <specification_method>filename</specification_method>
+      <trans_object_id />
+      <filename>F:\ETL\OA\设备管理\抽取OA设备管理保养记录信息.ktr</filename>
+      <transname />
+      <arg_from_previous>N</arg_from_previous>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <logfile />
+      <logext />
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <cluster>N</cluster>
+      <slave_server_name />
+      <set_append_logfile>N</set_append_logfile>
+      <wait_until_finished>Y</wait_until_finished>
+      <follow_abort_remote>N</follow_abort_remote>
+      <create_parent_folder>N</create_parent_folder>
+      <logging_remote_work>N</logging_remote_work>
+      <run_configuration>Pentaho local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>320</xloc>
+      <yloc>1120</yloc>
+    </entry>
+  </entries>
+  <hops>
+    <hop>
+      <from>主数据插入主表临时表</from>
+      <to>修改数据插入主表临时表</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>修改数据插入主表临时表</from>
+      <to>删除主表重复</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>删除主表重复</from>
+      <to>插入主表</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>插入主表</from>
+      <to>插入更新时间</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>START</from>
+      <to>主数据插入主表临时表</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>N</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>START</from>
+      <to>抽取生产经营指标临时表</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>抽取生产经营指标临时表</from>
+      <to>抽取生产经营指标正式表</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取生产经营指标正式表</from>
+      <to>抽取生产经营指标预算数据</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取生产经营指标预算数据</from>
+      <to>插入更新时间 (2)</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>START</from>
+      <to>抽取生产经营指标明细表-临时</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>抽取生产经营指标明细表-正式</from>
+      <to>抽取经营指标预算明细</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取生产经营指标明细表-临时</from>
+      <to>抽取NC各公司每月产量</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取NC各公司每月产量</from>
+      <to>抽取生产经营指标明细表-正式</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取投诉分析主表</from>
+      <to>抽取投诉分析明细表1</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>START</from>
+      <to>抽取投诉分析主表</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>抽取投诉分析明细表1</from>
+      <to>抽取投诉分析明细表2</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取经营指标预算明细</from>
+      <to>抽取每月降本金额</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取每月降本金额</from>
+      <to>抽取每月预算降本金额</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取每月预算降本金额</from>
+      <to>插入更新时间 (3)</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>START</from>
+      <to>抽取客户提货委托书</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>抽取客户提货委托书</from>
+      <to>成功 2</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>成功 2</from>
+      <to>客户提货委托书插入时间</to>
+      <from_nr>0</from_nr>
+      <to_nr>1</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>START</from>
+      <to>抽取呆滞成品数据</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>抽取投诉分析明细表2</from>
+      <to>成功 4</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取呆滞成品数据</from>
+      <to>抽取呆滞原料数据</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>START</from>
+      <to>抽取销售订单相关单据操作分析</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>抽取销售订单相关单据操作分析</from>
+      <to>成功 5</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>成功 5</from>
+      <to>插入更新时间 (4)</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取呆滞原料数据</from>
+      <to>抽取每日生产计划填报数据</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取每日生产计划填报数据</from>
+      <to>成功 3</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>START</from>
+      <to>抽取设备管理情况数据（报表）</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>START</from>
+      <to>抽取休假申请流程数据</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>抽取休假申请流程数据</from>
+      <to>抽取销假申请流程</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取销假申请流程</from>
+      <to>抽取加班流程数据</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取加班流程数据</from>
+      <to>抽取出差流程数据</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取出差流程数据</from>
+      <to>抽取漏签流程数据</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取漏签流程数据</from>
+      <to>成功 7</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取设备管理情况数据（报表）</from>
+      <to>抽取销售单据删除明细</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取销售单据删除明细</from>
+      <to>成功 6</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>成功 6</from>
+      <to>插入更新时间 (5)</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取印章保管人认定流程</from>
+      <to>抽取公司证照保管申请流程</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取公司证照保管申请流程</from>
+      <to>成功 8</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>成功 8</from>
+      <to>插入更新时间 (6) </to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>START</from>
+      <to>抽取印章保管人认定流程</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>生产事故质量报备与处理</from>
+      <to>成功 9</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>成功 9</from>
+      <to>插入更新时间 (7)</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>START</from>
+      <to>生产事故质量报备与处理</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>原材料包装物添加剂扣款和退货处理</from>
+      <to>成功 10</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>成功 10</from>
+      <to>插入更新时间 (8)</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>START</from>
+      <to>原材料包装物添加剂扣款和退货处理</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>客户投诉与售后处理申请</from>
+      <to>成功 11</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>成功 11</from>
+      <to>插入更新时间 (9) </to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>START</from>
+      <to>客户投诉与售后处理申请</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>N</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>START</from>
+      <to>作业</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>作业</from>
+      <to>成功 12</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>START</from>
+      <to>抽取OA设备管理巡检记录信息</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>抽取OA设备管理巡检记录信息</from>
+      <to>抽取OA设备管理保养记录信息</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>抽取OA设备管理保养记录信息</from>
+      <to>成功 13</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+  </hops>
+  <notepads>
+  </notepads>
+  <attributes>
+    <group>
+      <name>METASTORE.pentaho</name>
+      <attribute>
+        <key>Default Run Configuration</key>
+        <value>{"namespace":"pentaho","id":"Default Run Configuration","name":"Default Run Configuration","description":"Defines a default run configuration","metaStoreName":null}</value>
+      </attribute>
+    </group>
+    <group>
+      <name>{"_":"Embedded MetaStore Elements","namespace":"pentaho","type":"Default Run Configuration"}</name>
+      <attribute>
+        <key>Pentaho local</key>
+        <value>{"children":[{"children":[],"id":"server","value":null},{"children":[],"id":"clustered","value":"N"},{"children":[],"id":"name","value":"Pentaho local"},{"children":[],"id":"description","value":null},{"children":[],"id":"readOnly","value":"Y"},{"children":[],"id":"sendResources","value":"N"},{"children":[],"id":"logRemoteExecutionLocally","value":"N"},{"children":[],"id":"remote","value":"N"},{"children":[],"id":"local","value":"Y"},{"children":[],"id":"showTransformations","value":"N"}],"id":"Pentaho local","value":null,"name":"Pentaho local","owner":null,"ownerPermissionsList":[]}</value>
+      </attribute>
+    </group>
+  </attributes>
+</job>

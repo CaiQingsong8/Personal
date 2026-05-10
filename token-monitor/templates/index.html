@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token消耗监控</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background: #f5f5f5; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        h1 { font-size: 1.5rem; color: #333; }
+        .btn { padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+        .btn:hover { background: #5a6fd6; }
+        .status { font-size: 0.8rem; color: #666; }
+        .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .card-title { font-size: 1.1rem; color: #333; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .badge { padding: 4px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; }
+        .badge-mimo { background: #667eea; color: white; }
+        .badge-deepseek { background: #f5576c; color: white; }
+        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .stat { text-align: center; padding: 10px; background: #f8f9fa; border-radius: 8px; }
+        .stat-label { font-size: 0.75rem; color: #666; display: block; }
+        .stat-value { font-size: 1.2rem; font-weight: 700; color: #333; display: block; margin-top: 4px; }
+        .progress { height: 8px; background: #e9ecef; border-radius: 4px; margin-top: 15px; overflow: hidden; }
+        .progress-bar { height: 100%; border-radius: 4px; transition: width 0.5s; }
+        .progress-mimo { background: linear-gradient(90deg, #667eea, #764ba2); }
+        .progress-deepseek { background: linear-gradient(90deg, #f093fb, #f5576c); }
+        .footer { text-align: center; margin-top: 20px; font-size: 0.8rem; color: #999; }
+        .error { color: #dc3545; font-size: 0.85rem; text-align: center; padding: 20px; }
+        @media (max-width: 768px) { .dashboard { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Token消耗监控</h1>
+        <div>
+            <span class="status" id="status">就绪</span>
+            <button class="btn" onclick="refreshAll()">刷新</button>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <div class="card" id="mimoCard">
+            <div class="card-title">
+                mimo
+                <span class="badge badge-mimo">Token</span>
+            </div>
+            <div class="stats">
+                <div class="stat">
+                    <span class="stat-label">总Token</span>
+                    <span class="stat-value" id="mimoTotal">--</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">已使用</span>
+                    <span class="stat-value" id="mimoUsed">--</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">剩余</span>
+                    <span class="stat-value" id="mimoRemaining">--</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">使用率</span>
+                    <span class="stat-value" id="mimoRate">--</span>
+                </div>
+            </div>
+            <div class="progress">
+                <div class="progress-bar progress-mimo" id="mimoProgress"></div>
+            </div>
+            <div style="text-align:center;margin-top:12px;">
+                <a href="https://platform.xiaomimimo.com/console/plan-manage" target="_blank" style="color:#667eea;font-size:0.85rem;text-decoration:none;">查看用量详情 →</a>
+            </div>
+        </div>
+
+        <div class="card" id="deepseekCard">
+            <div class="card-title">
+                deepseek
+                <span class="badge badge-deepseek">余额</span>
+            </div>
+            <div class="stats">
+                <div class="stat">
+                    <span class="stat-label">总余额</span>
+                    <span class="stat-value" id="deepseekTotal">--</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">已充值</span>
+                    <span class="stat-value" id="deepseekToppedUp">--</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">赠送</span>
+                    <span class="stat-value" id="deepseekGranted">--</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">状态</span>
+                    <span class="stat-value" id="deepseekStatus">--</span>
+                </div>
+            </div>
+            <div style="text-align:center;margin-top:12px;">
+                <a href="https://platform.deepseek.com/usage" target="_blank" style="color:#f5576c;font-size:0.85rem;text-decoration:none;">查看用量详情 →</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        数据每60秒自动刷新 | <span id="lastUpdate">--</span>
+    </div>
+
+    <script>
+        const API = '';
+
+        async function refreshAll() {
+            document.getElementById('status').textContent = '刷新中...';
+            try {
+                const res = await fetch(`${API}/api/refresh`);
+                const data = await res.json();
+                if (data.success) {
+                    updateMimoCard(data.data.results.mimo);
+                    updateDeepseekCard(data.data.results.deepseek);
+                    document.getElementById('status').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN');
+                } else {
+                    document.getElementById('status').textContent = '刷新失败';
+                }
+            } catch (e) {
+                document.getElementById('status').textContent = '网络错误';
+            }
+        }
+
+        function updateMimoCard(result) {
+            if (!result.success) {
+                document.getElementById('mimoTotal').textContent = '--';
+                document.getElementById('mimoUsed').textContent = '--';
+                document.getElementById('mimoRemaining').textContent = '--';
+                document.getElementById('mimoRate').textContent = '--';
+                document.getElementById('mimoProgress').style.width = '0%';
+                return;
+            }
+            const d = result.data;
+            document.getElementById('mimoTotal').textContent = formatNum(d.total_tokens);
+            document.getElementById('mimoUsed').textContent = formatNum(d.used_tokens);
+            document.getElementById('mimoRemaining').textContent = formatNum(d.remaining_tokens);
+            const rate = d.total_tokens > 0 ? ((d.used_tokens / d.total_tokens) * 100).toFixed(1) : 0;
+            document.getElementById('mimoRate').textContent = rate + '%';
+            document.getElementById('mimoProgress').style.width = rate + '%';
+        }
+
+        function updateDeepseekCard(result) {
+            if (!result.success) {
+                document.getElementById('deepseekTotal').textContent = '--';
+                document.getElementById('deepseekToppedUp').textContent = '--';
+                document.getElementById('deepseekGranted').textContent = '--';
+                document.getElementById('deepseekStatus').textContent = '--';
+                return;
+            }
+            const d = result.data;
+            document.getElementById('deepseekTotal').textContent = '¥' + d.total_balance.toFixed(2);
+            document.getElementById('deepseekToppedUp').textContent = '¥' + d.topped_up_balance.toFixed(2);
+            document.getElementById('deepseekGranted').textContent = '¥' + d.granted_balance.toFixed(2);
+            document.getElementById('deepseekStatus').textContent = d.is_available ? '正常' : '不可用';
+        }
+
+        function formatNum(n) {
+            return n ? n.toLocaleString('zh-CN') : '--';
+        }
+
+        refreshAll();
+        setInterval(refreshAll, 60000);
+    </script>
+</body>
+</html>

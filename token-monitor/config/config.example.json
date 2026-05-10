@@ -1,0 +1,14 @@
+{
+  "mimo": {
+    "api_key": "your_mimo_api_key_here",
+    "base_url": "https://platform.xiaomimimo.com/api"
+  },
+  "deepseek": {
+    "api_key": "your_deepseek_api_key_here",
+    "base_url": "https://api.deepseek.com"
+  },
+  "server": {
+    "port": 5000,
+    "debug": true
+  }
+}

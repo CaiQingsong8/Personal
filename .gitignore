@@ -1,0 +1,10 @@
+.DS_Store
+.idea/
+.ai/
+LLG/
+Personal/douyin-video/output/
+Personal/douyin-video/*.mp4
+.claude/
+*.swp
+settings.jsondeepseek
+settings.jsonxiaomi

@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 余额监控</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: #1e1e2e;
+    --accent-ds: #4fc3f7;
+    --accent-mm: #a78bfa;
+    --text: #e2e2f0;
+    --muted: #555570;
+    --success: #4ade80;
+    --warn: #facc15;
+    --danger: #f87171;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans SC', sans-serif;
+    min-height: 100vh;
+    padding: 40px 24px;
+    background-image:
+      radial-gradient(ellipse 60% 40% at 20% 10%, rgba(79,195,247,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 40% at 80% 90%, rgba(167,139,250,0.06) 0%, transparent 60%);
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  header h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  header p {
+    font-size: 28px;
+    font-weight: 300;
+    color: var(--text);
+    letter-spacing: -0.5px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+    max-width: 900px;
+    margin: 0 auto 32px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .card.deepseek::before { background: linear-gradient(90deg, var(--accent-ds), transparent); }
+  .card.minimax::before  { background: linear-gradient(90deg, var(--accent-mm), transparent); }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .platform-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  .deepseek .platform-name { color: var(--accent-ds); }
+  .minimax  .platform-name { color: var(--accent-mm); }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.3s;
+  }
+
+  .status-dot.ok      { background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .status-dot.warn    { background: var(--warn);    box-shadow: 0 0 6px var(--warn); }
+  .status-dot.danger  { background: var(--danger);  box-shadow: 0 0 6px var(--danger); }
+
+  .balance-main {
+    margin-bottom: 20px;
+  }
+
+  .balance-label {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .balance-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .balance-value .unit {
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--muted);
+    margin-left: 4px;
+  }
+
+  .balance-rows {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .balance-row {
+    background: rgba(255,255,255,0.03);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+
+  .row-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  .row-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    color: var(--text);
+  }
+
+  /* progress bar */
+  .progress-wrap {
+    margin-bottom: 6px;
+  }
+
+  .progress-track {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.6s ease;
+  }
+
+  .deepseek .progress-fill { background: var(--accent-ds); }
+  .minimax  .progress-fill { background: var(--accent-mm); }
+
+  .progress-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* api key input area */
+  .key-area {
+    max-width: 900px;
+    margin: 0 auto 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+  }
+
+  .key-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .key-block label {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .key-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .key-block input {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    padding: 8px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .key-block input:focus { border-color: var(--muted); }
+
+  button.fetch-btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 8px 16px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: background 0.2s, border-color 0.2s;
+    white-space: nowrap;
+  }
+
+  button.fetch-btn:hover { background: rgba(255,255,255,0.1); border-color: var(--muted); }
+  button.fetch-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .refresh-bar {
+    max-width: 900px;
+    margin: 0 auto 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .last-update {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .loading-spin {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--text);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg {
+    font-size: 12px;
+    color: var(--danger);
+    font-family: 'Space Mono', monospace;
+    margin-top: 4px;
+  }
+
+  .skeleton {
+    background: linear-gradient(90deg, var(--border) 25%, #1a1a2a 50%, var(--border) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.2s infinite;
+    border-radius: 4px;
+    height: 36px;
+    width: 120px;
+  }
+
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  .placeholder-text {
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+  }
+
+  .cors-note {
+    max-width: 900px;
+    margin: 0 auto 24px;
+    background: rgba(250,204,21,0.06);
+    border: 1px solid rgba(250,204,21,0.2);
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 12px;
+    color: var(--warn);
+    line-height: 1.6;
+  }
+
+  .cors-note strong { font-family: 'Space Mono', monospace; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>AI BALANCE MONITOR</h1>
+  <p>平台余额实时看板</p>
+</header>
+
+<div class="cors-note">
+  ⚠️ <strong>注意：</strong>直接从浏览器调用 DeepSeek / MiniMax API 可能遇到 CORS 限制。建议在本地部署一个简单的代理服务（见页面底部说明），或使用支持 CORS 的环境（如 Vercel Edge Function）。输入 API Key 后点击刷新即可查询。
+</div>
+
+<div class="key-area">
+  <div class="key-block">
+    <label>DeepSeek API Key</label>
+    <div class="key-row">
+      <input type="password" id="ds-key" placeholder="sk-..." autocomplete="off">
+      <button class="fetch-btn" onclick="fetchDeepSeek()">刷新</button>
+    </div>
+    <div id="ds-error" class="error-msg"></div>
+  </div>
+  <div class="key-block">
+    <label>MiniMax API Key</label>
+    <div class="key-row">
+      <input type="password" id="mm-key" placeholder="eyJ..." autocomplete="off">
+      <button class="fetch-btn" onclick="fetchMiniMax()">刷新</button>
+    </div>
+    <div id="mm-error" class="error-msg"></div>
+  </div>
+</div>
+
+<div class="refresh-bar">
+  <span class="last-update" id="update-time">— 尚未查询</span>
+</div>
+
+<div class="grid">
+  <!-- DeepSeek Card -->
+  <div class="card deepseek">
+    <div class="card-header">
+      <span class="platform-name">DeepSeek</span>
+      <span class="status-dot" id="ds-dot"></span>
+    </div>
+    <div class="balance-main">
+      <div class="balance-label">总余额</div>
+      <div class="balance-value" id="ds-total"><span class="placeholder-text">—</span></div>
+    </div>
+    <div class="balance-rows">
+      <div class="balance-row">
+        <div class="row-label">充值余额</div>
+        <div class="row-value" id="ds-topped">—</div>
+      </div>
+      <div class="balance-row">
+        <div class="row-label">赠送余额</div>
+        <div class="row-value" id="ds-granted">—</div>
+      </div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-track">
+        <div class="progress-fill" id="ds-bar" style="width:0%"></div>
+      </div>
+      <div class="progress-labels">
+        <span>赠送占比</span>
+        <span id="ds-pct">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MiniMax Card -->
+  <div class="card minimax">
+    <div class="card-header">
+      <span class="platform-name">MiniMax / MIMO</span>
+      <span class="status-dot" id="mm-dot"></span>
+    </div>
+    <div class="balance-main">
+      <div class="balance-label">剩余 Tokens / Prompts</div>
+      <div class="balance-value" id="mm-total"><span class="placeholder-text">—</span></div>
+    </div>
+    <div class="balance-rows">
+      <div class="balance-row">
+        <div class="row-label">账户余额</div>
+        <div class="row-value" id="mm-balance">—</div>
+      </div>
+      <div class="balance-row">
+        <div class="row-label">计划状态</div>
+        <div class="row-value" id="mm-plan">—</div>
+      </div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-track">
+        <div class="progress-fill" id="mm-bar" style="width:0%"></div>
+      </div>
+      <div class="progress-labels">
+        <span>可用额度</span>
+        <span id="mm-pct">—</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function now() {
+  return new Date().toLocaleString('zh-CN', { hour12: false });
+}
+
+function setLoading(prefix) {
+  document.getElementById(`${prefix}-total`).innerHTML = '<div class="skeleton"></div>';
+  document.getElementById(`${prefix}-dot`).className = 'status-dot';
+}
+
+function setError(prefix, msg) {
+  document.getElementById(`${prefix}-total`).innerHTML = '<span class="placeholder-text">请求失败</span>';
+  document.getElementById(`${prefix}-error`).textContent = msg;
+  document.getElementById(`${prefix}-dot`).className = 'status-dot danger';
+}
+
+function clearError(prefix) {
+  document.getElementById(`${prefix}-error`).textContent = '';
+}
+
+function updateTime() {
+  document.getElementById('update-time').textContent = '最后更新：' + now();
+}
+
+// ---- DeepSeek ----
+async function fetchDeepSeek() {
+  const key = document.getElementById('ds-key').value.trim();
+  if (!key) { document.getElementById('ds-error').textContent = '请输入 API Key'; return; }
+  clearError('ds');
+  setLoading('ds');
+
+  try {
+    const resp = await fetch('https://api.deepseek.com/user/balance', {
+      headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
+    });
+
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    const info = data.balance_infos?.[0];
+    if (!info) throw new Error('数据格式异常');
+
+    const total   = parseFloat(info.total_balance);
+    const granted = parseFloat(info.granted_balance);
+    const topped  = parseFloat(info.topped_up_balance);
+    const pct     = total > 0 ? Math.round((granted / total) * 100) : 0;
+    const available = data.is_available;
+
+    const cur = info.currency === 'CNY' ? '¥' : '$';
+
+    document.getElementById('ds-total').innerHTML =
+      `${cur}<span>${total.toFixed(2)}</span><span class="unit">${info.currency}</span>`;
+    document.getElementById('ds-topped').textContent  = `${cur}${topped.toFixed(4)}`;
+    document.getElementById('ds-granted').textContent = `${cur}${granted.toFixed(4)}`;
+    document.getElementById('ds-bar').style.width = pct + '%';
+    document.getElementById('ds-pct').textContent = pct + '%';
+
+    const dot = document.getElementById('ds-dot');
+    dot.className = 'status-dot ' + (available ? (total < 1 ? 'warn' : 'ok') : 'danger');
+
+    updateTime();
+  } catch (e) {
+    setError('ds', e.message.includes('Failed to fetch') ? 'CORS 限制，需代理（见页面说明）' : e.message);
+  }
+}
+
+// ---- MiniMax ----
+async function fetchMiniMax() {
+  const key = document.getElementById('mm-key').value.trim();
+  if (!key) { document.getElementById('mm-error').textContent = '请输入 API Key'; return; }
+  clearError('mm');
+  setLoading('mm');
+
+  try {
+    const resp = await fetch('https://www.minimax.io/v1/token_plan/remains', {
+      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' }
+    });
+
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    // MiniMax Token Plan 返回结构因版本不同有差异，做宽松处理
+    const remains = data.remains ?? data.remain ?? data.remaining ?? null;
+    const total   = data.total ?? null;
+    const balance = data.balance ?? data.account_balance ?? null;
+    const plan    = data.plan_name ?? data.plan ?? '—';
+
+    const pct = (remains !== null && total !== null && total > 0)
+      ? Math.round((remains / total) * 100) : 0;
+
+    document.getElementById('mm-total').innerHTML = remains !== null
+      ? `<span>${remains.toLocaleString()}</span><span class="unit">tokens</span>`
+      : '<span class="placeholder-text">见详情</span>';
+
+    document.getElementById('mm-balance').textContent = balance !== null
+      ? `¥${parseFloat(balance).toFixed(4)}` : '—';
+    document.getElementById('mm-plan').textContent = plan;
+    document.getElementById('mm-bar').style.width = pct + '%';
+    document.getElementById('mm-pct').textContent = total ? `${remains}/${total}` : '—';
+
+    const dot = document.getElementById('mm-dot');
+    dot.className = 'status-dot ' + (pct > 20 ? 'ok' : pct > 5 ? 'warn' : 'danger');
+
+    updateTime();
+  } catch (e) {
+    // 如果 token_plan 接口 404，MiniMax 可能是余额制账户
+    if (e.message.includes('404')) {
+      setError('mm', '非 Token Plan 账户，请查看账户余额页面');
+    } else {
+      setError('mm', e.message.includes('Failed to fetch') ? 'CORS 限制，需代理（见页面说明）' : e.message);
+    }
+  }
+}
+
+// 回车触发
+document.getElementById('ds-key').addEventListener('keydown', e => e.key === 'Enter' && fetchDeepSeek());
+document.getElementById('mm-key').addEventListener('keydown', e => e.key === 'Enter' && fetchMiniMax());
+</script>
+
+</body>
+</html>

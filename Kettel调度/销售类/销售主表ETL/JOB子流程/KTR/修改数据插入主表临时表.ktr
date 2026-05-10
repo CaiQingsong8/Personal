@@ -1,0 +1,1023 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<transformation>
+  <info>
+    <name>修改数据插入主表临时表</name>
+    <description />
+    <extended_description />
+    <trans_version />
+    <trans_type>Normal</trans_type>
+    <trans_status>0</trans_status>
+    <directory>/</directory>
+    <parameters>
+    </parameters>
+    <log>
+      <trans-log-table>
+        <connection />
+        <schema />
+        <table />
+        <size_limit_lines />
+        <interval />
+        <timeout_days />
+        <field>
+          <id>ID_BATCH</id>
+          <enabled>Y</enabled>
+          <name>ID_BATCH</name>
+        </field>
+        <field>
+          <id>CHANNEL_ID</id>
+          <enabled>Y</enabled>
+          <name>CHANNEL_ID</name>
+        </field>
+        <field>
+          <id>TRANSNAME</id>
+          <enabled>Y</enabled>
+          <name>TRANSNAME</name>
+        </field>
+        <field>
+          <id>STATUS</id>
+          <enabled>Y</enabled>
+          <name>STATUS</name>
+        </field>
+        <field>
+          <id>LINES_READ</id>
+          <enabled>Y</enabled>
+          <name>LINES_READ</name>
+          <subject />
+        </field>
+        <field>
+          <id>LINES_WRITTEN</id>
+          <enabled>Y</enabled>
+          <name>LINES_WRITTEN</name>
+          <subject />
+        </field>
+        <field>
+          <id>LINES_UPDATED</id>
+          <enabled>Y</enabled>
+          <name>LINES_UPDATED</name>
+          <subject />
+        </field>
+        <field>
+          <id>LINES_INPUT</id>
+          <enabled>Y</enabled>
+          <name>LINES_INPUT</name>
+          <subject />
+        </field>
+        <field>
+          <id>LINES_OUTPUT</id>
+          <enabled>Y</enabled>
+          <name>LINES_OUTPUT</name>
+          <subject />
+        </field>
+        <field>
+          <id>LINES_REJECTED</id>
+          <enabled>Y</enabled>
+          <name>LINES_REJECTED</name>
+          <subject />
+        </field>
+        <field>
+          <id>ERRORS</id>
+          <enabled>Y</enabled>
+          <name>ERRORS</name>
+        </field>
+        <field>
+          <id>STARTDATE</id>
+          <enabled>Y</enabled>
+          <name>STARTDATE</name>
+        </field>
+        <field>
+          <id>ENDDATE</id>
+          <enabled>Y</enabled>
+          <name>ENDDATE</name>
+        </field>
+        <field>
+          <id>LOGDATE</id>
+          <enabled>Y</enabled>
+          <name>LOGDATE</name>
+        </field>
+        <field>
+          <id>DEPDATE</id>
+          <enabled>Y</enabled>
+          <name>DEPDATE</name>
+        </field>
+        <field>
+          <id>REPLAYDATE</id>
+          <enabled>Y</enabled>
+          <name>REPLAYDATE</name>
+        </field>
+        <field>
+          <id>LOG_FIELD</id>
+          <enabled>Y</enabled>
+          <name>LOG_FIELD</name>
+        </field>
+        <field>
+          <id>EXECUTING_SERVER</id>
+          <enabled>N</enabled>
+          <name>EXECUTING_SERVER</name>
+        </field>
+        <field>
+          <id>EXECUTING_USER</id>
+          <enabled>N</enabled>
+          <name>EXECUTING_USER</name>
+        </field>
+        <field>
+          <id>CLIENT</id>
+          <enabled>N</enabled>
+          <name>CLIENT</name>
+        </field>
+      </trans-log-table>
+      <perf-log-table>
+        <connection />
+        <schema />
+        <table />
+        <interval />
+        <timeout_days />
+        <field>
+          <id>ID_BATCH</id>
+          <enabled>Y</enabled>
+          <name>ID_BATCH</name>
+        </field>
+        <field>
+          <id>SEQ_NR</id>
+          <enabled>Y</enabled>
+          <name>SEQ_NR</name>
+        </field>
+        <field>
+          <id>LOGDATE</id>
+          <enabled>Y</enabled>
+          <name>LOGDATE</name>
+        </field>
+        <field>
+          <id>TRANSNAME</id>
+          <enabled>Y</enabled>
+          <name>TRANSNAME</name>
+        </field>
+        <field>
+          <id>STEPNAME</id>
+          <enabled>Y</enabled>
+          <name>STEPNAME</name>
+        </field>
+        <field>
+          <id>STEP_COPY</id>
+          <enabled>Y</enabled>
+          <name>STEP_COPY</name>
+        </field>
+        <field>
+          <id>LINES_READ</id>
+          <enabled>Y</enabled>
+          <name>LINES_READ</name>
+        </field>
+        <field>
+          <id>LINES_WRITTEN</id>
+          <enabled>Y</enabled>
+          <name>LINES_WRITTEN</name>
+        </field>
+        <field>
+          <id>LINES_UPDATED</id>
+          <enabled>Y</enabled>
+          <name>LINES_UPDATED</name>
+        </field>
+        <field>
+          <id>LINES_INPUT</id>
+          <enabled>Y</enabled>
+          <name>LINES_INPUT</name>
+        </field>
+        <field>
+          <id>LINES_OUTPUT</id>
+          <enabled>Y</enabled>
+          <name>LINES_OUTPUT</name>
+        </field>
+        <field>
+          <id>LINES_REJECTED</id>
+          <enabled>Y</enabled>
+          <name>LINES_REJECTED</name>
+        </field>
+        <field>
+          <id>ERRORS</id>
+          <enabled>Y</enabled>
+          <name>ERRORS</name>
+        </field>
+        <field>
+          <id>INPUT_BUFFER_ROWS</id>
+          <enabled>Y</enabled>
+          <name>INPUT_BUFFER_ROWS</name>
+        </field>
+        <field>
+          <id>OUTPUT_BUFFER_ROWS</id>
+          <enabled>Y</enabled>
+          <name>OUTPUT_BUFFER_ROWS</name>
+        </field>
+      </perf-log-table>
+      <channel-log-table>
+        <connection />
+        <schema />
+        <table />
+        <timeout_days />
+        <field>
+          <id>ID_BATCH</id>
+          <enabled>Y</enabled>
+          <name>ID_BATCH</name>
+        </field>
+        <field>
+          <id>CHANNEL_ID</id>
+          <enabled>Y</enabled>
+          <name>CHANNEL_ID</name>
+        </field>
+        <field>
+          <id>LOG_DATE</id>
+          <enabled>Y</enabled>
+          <name>LOG_DATE</name>
+        </field>
+        <field>
+          <id>LOGGING_OBJECT_TYPE</id>
+          <enabled>Y</enabled>
+          <name>LOGGING_OBJECT_TYPE</name>
+        </field>
+        <field>
+          <id>OBJECT_NAME</id>
+          <enabled>Y</enabled>
+          <name>OBJECT_NAME</name>
+        </field>
+        <field>
+          <id>OBJECT_COPY</id>
+          <enabled>Y</enabled>
+          <name>OBJECT_COPY</name>
+        </field>
+        <field>
+          <id>REPOSITORY_DIRECTORY</id>
+          <enabled>Y</enabled>
+          <name>REPOSITORY_DIRECTORY</name>
+        </field>
+        <field>
+          <id>FILENAME</id>
+          <enabled>Y</enabled>
+          <name>FILENAME</name>
+        </field>
+        <field>
+          <id>OBJECT_ID</id>
+          <enabled>Y</enabled>
+          <name>OBJECT_ID</name>
+        </field>
+        <field>
+          <id>OBJECT_REVISION</id>
+          <enabled>Y</enabled>
+          <name>OBJECT_REVISION</name>
+        </field>
+        <field>
+          <id>PARENT_CHANNEL_ID</id>
+          <enabled>Y</enabled>
+          <name>PARENT_CHANNEL_ID</name>
+        </field>
+        <field>
+          <id>ROOT_CHANNEL_ID</id>
+          <enabled>Y</enabled>
+          <name>ROOT_CHANNEL_ID</name>
+        </field>
+      </channel-log-table>
+      <step-log-table>
+        <connection />
+        <schema />
+        <table />
+        <timeout_days />
+        <field>
+          <id>ID_BATCH</id>
+          <enabled>Y</enabled>
+          <name>ID_BATCH</name>
+        </field>
+        <field>
+          <id>CHANNEL_ID</id>
+          <enabled>Y</enabled>
+          <name>CHANNEL_ID</name>
+        </field>
+        <field>
+          <id>LOG_DATE</id>
+          <enabled>Y</enabled>
+          <name>LOG_DATE</name>
+        </field>
+        <field>
+          <id>TRANSNAME</id>
+          <enabled>Y</enabled>
+          <name>TRANSNAME</name>
+        </field>
+        <field>
+          <id>STEPNAME</id>
+          <enabled>Y</enabled>
+          <name>STEPNAME</name>
+        </field>
+        <field>
+          <id>STEP_COPY</id>
+          <enabled>Y</enabled>
+          <name>STEP_COPY</name>
+        </field>
+        <field>
+          <id>LINES_READ</id>
+          <enabled>Y</enabled>
+          <name>LINES_READ</name>
+        </field>
+        <field>
+          <id>LINES_WRITTEN</id>
+          <enabled>Y</enabled>
+          <name>LINES_WRITTEN</name>
+        </field>
+        <field>
+          <id>LINES_UPDATED</id>
+          <enabled>Y</enabled>
+          <name>LINES_UPDATED</name>
+        </field>
+        <field>
+          <id>LINES_INPUT</id>
+          <enabled>Y</enabled>
+          <name>LINES_INPUT</name>
+        </field>
+        <field>
+          <id>LINES_OUTPUT</id>
+          <enabled>Y</enabled>
+          <name>LINES_OUTPUT</name>
+        </field>
+        <field>
+          <id>LINES_REJECTED</id>
+          <enabled>Y</enabled>
+          <name>LINES_REJECTED</name>
+        </field>
+        <field>
+          <id>ERRORS</id>
+          <enabled>Y</enabled>
+          <name>ERRORS</name>
+        </field>
+        <field>
+          <id>LOG_FIELD</id>
+          <enabled>N</enabled>
+          <name>LOG_FIELD</name>
+        </field>
+      </step-log-table>
+      <metrics-log-table>
+        <connection />
+        <schema />
+        <table />
+        <timeout_days />
+        <field>
+          <id>ID_BATCH</id>
+          <enabled>Y</enabled>
+          <name>ID_BATCH</name>
+        </field>
+        <field>
+          <id>CHANNEL_ID</id>
+          <enabled>Y</enabled>
+          <name>CHANNEL_ID</name>
+        </field>
+        <field>
+          <id>LOG_DATE</id>
+          <enabled>Y</enabled>
+          <name>LOG_DATE</name>
+        </field>
+        <field>
+          <id>METRICS_DATE</id>
+          <enabled>Y</enabled>
+          <name>METRICS_DATE</name>
+        </field>
+        <field>
+          <id>METRICS_CODE</id>
+          <enabled>Y</enabled>
+          <name>METRICS_CODE</name>
+        </field>
+        <field>
+          <id>METRICS_DESCRIPTION</id>
+          <enabled>Y</enabled>
+          <name>METRICS_DESCRIPTION</name>
+        </field>
+        <field>
+          <id>METRICS_SUBJECT</id>
+          <enabled>Y</enabled>
+          <name>METRICS_SUBJECT</name>
+        </field>
+        <field>
+          <id>METRICS_TYPE</id>
+          <enabled>Y</enabled>
+          <name>METRICS_TYPE</name>
+        </field>
+        <field>
+          <id>METRICS_VALUE</id>
+          <enabled>Y</enabled>
+          <name>METRICS_VALUE</name>
+        </field>
+      </metrics-log-table>
+    </log>
+    <maxdate>
+      <connection />
+      <table />
+      <field />
+      <offset>0.0</offset>
+      <maxdiff>0.0</maxdiff>
+    </maxdate>
+    <size_rowset>10000</size_rowset>
+    <sleep_time_empty>50</sleep_time_empty>
+    <sleep_time_full>50</sleep_time_full>
+    <unique_connections>N</unique_connections>
+    <feedback_shown>Y</feedback_shown>
+    <feedback_size>50000</feedback_size>
+    <using_thread_priorities>Y</using_thread_priorities>
+    <shared_objects_file />
+    <capture_step_performance>N</capture_step_performance>
+    <step_performance_capturing_delay>1000</step_performance_capturing_delay>
+    <step_performance_capturing_size_limit>100</step_performance_capturing_size_limit>
+    <dependencies>
+    </dependencies>
+    <partitionschemas>
+    </partitionschemas>
+    <slaveservers>
+    </slaveservers>
+    <clusterschemas>
+    </clusterschemas>
+    <created_user>-</created_user>
+    <created_date>2017/08/01 18:31:28.886</created_date>
+    <modified_user>-</modified_user>
+    <modified_date>2017/08/01 18:31:28.886</modified_date>
+    <key_for_session_key>H4sIAAAAAAAAAAMAAAAAAAAAAAA=</key_for_session_key>
+    <is_key_private>N</is_key_private>
+  </info>
+  <notepads>
+  </notepads>
+  <connection>
+    <name>finereport_fbdbuser</name>
+    <server>10.31.52.24</server>
+    <type>ORACLE</type>
+    <access>Native</access>
+    <database>orcl</database>
+    <port>1521</port>
+    <username>fbdbuser</username>
+    <password>Encrypted 2be98e7af009f9988b84ffa2887948bfc</password>
+    <servername />
+    <data_tablespace>NFB_DATA01</data_tablespace>
+    <index_tablespace>NFB_INDEX01</index_tablespace>
+    <attributes>
+      <attribute>
+        <code>FORCE_IDENTIFIERS_TO_LOWERCASE</code>
+        <attribute>N</attribute>
+      </attribute>
+      <attribute>
+        <code>FORCE_IDENTIFIERS_TO_UPPERCASE</code>
+        <attribute>N</attribute>
+      </attribute>
+      <attribute>
+        <code>IS_CLUSTERED</code>
+        <attribute>N</attribute>
+      </attribute>
+      <attribute>
+        <code>PORT_NUMBER</code>
+        <attribute>1521</attribute>
+      </attribute>
+      <attribute>
+        <code>PRESERVE_RESERVED_WORD_CASE</code>
+        <attribute>Y</attribute>
+      </attribute>
+      <attribute>
+        <code>QUOTE_ALL_FIELDS</code>
+        <attribute>N</attribute>
+      </attribute>
+      <attribute>
+        <code>SUPPORTS_BOOLEAN_DATA_TYPE</code>
+        <attribute>Y</attribute>
+      </attribute>
+      <attribute>
+        <code>SUPPORTS_TIMESTAMP_DATA_TYPE</code>
+        <attribute>Y</attribute>
+      </attribute>
+      <attribute>
+        <code>USE_POOLING</code>
+        <attribute>N</attribute>
+      </attribute>
+    </attributes>
+  </connection>
+  <connection>
+    <name>nc65_ncread</name>
+    <server>10.26.94.112</server>
+    <type>ORACLE</type>
+    <access>Native</access>
+    <database>orcl</database>
+    <port>1521</port>
+    <username>ncread</username>
+    <password>Encrypted 2f6f3c38d3893c580a14cf7208c81a4d6</password>
+    <servername />
+    <data_tablespace />
+    <index_tablespace />
+    <attributes>
+      <attribute>
+        <code>FORCE_IDENTIFIERS_TO_LOWERCASE</code>
+        <attribute>N</attribute>
+      </attribute>
+      <attribute>
+        <code>FORCE_IDENTIFIERS_TO_UPPERCASE</code>
+        <attribute>N</attribute>
+      </attribute>
+      <attribute>
+        <code>IS_CLUSTERED</code>
+        <attribute>N</attribute>
+      </attribute>
+      <attribute>
+        <code>PORT_NUMBER</code>
+        <attribute>1521</attribute>
+      </attribute>
+      <attribute>
+        <code>PRESERVE_RESERVED_WORD_CASE</code>
+        <attribute>Y</attribute>
+      </attribute>
+      <attribute>
+        <code>QUOTE_ALL_FIELDS</code>
+        <attribute>N</attribute>
+      </attribute>
+      <attribute>
+        <code>SUPPORTS_BOOLEAN_DATA_TYPE</code>
+        <attribute>Y</attribute>
+      </attribute>
+      <attribute>
+        <code>SUPPORTS_TIMESTAMP_DATA_TYPE</code>
+        <attribute>Y</attribute>
+      </attribute>
+      <attribute>
+        <code>USE_POOLING</code>
+        <attribute>N</attribute>
+      </attribute>
+    </attributes>
+  </connection>
+  <order>
+    <hop>
+      <from>抽取修改数据</from>
+      <to>插入主表临时表</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>获取更新时间变量</from>
+      <to>抽取修改数据</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <step>
+    <name>抽取修改数据</name>
+    <type>TableInput</type>
+    <description />
+    <distribute>Y</distribute>
+    <custom_distribution />
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <connection>nc65_ncread</connection>
+    <sql>SELECT DISTINCT substr(so_saleorder_b.dbilldate,1,10)  dbilldate,  --订单日期
+                substr(so_saleorder_b.dbilldate,1,4)  dbilldate_year, --年
+                substr(so_saleorder_b.dbilldate,6,2)  dbilldate_month, --月
+                so_saleorder.csaleorderid    csaleorderid,--订单主键
+                so_saleorder.fstatusflag     ddzt,  --审核状态
+                bd_billtype.billtypename     billtypename,--单据类型名称
+                so_saleorder.vbillcode        vbillcode,     --单据号
+                so_saleorder.vdef20           ceyy,   --超额原因 
+                so_saleorder_b.nastnum        nastnum, --数量包
+                bd_measdoc2.name              fdw,  --辅单位
+                so_saleorder_b.nnum           nnum, --主数量吨
+                bd_measdoc1.name              zdw,  --主单位
+                so_saleorder_b.norigtaxmny    jshj, --价税合计
+                so_saleorder_b.crowno         crowno,--行号
+                bd_material.code            wlbm, --物料编码
+                bd_material.name            wlmc, --物料名称
+                bd_material.materialtype    wlxh, --物料型号
+                bd_branddoc.name              wlpp, --物料品牌
+                so_saleorder_b.csendstordocid ckzj, --发货仓库主键
+                bd_stordoc.name               fhck, --发货仓库
+                org_orgs.def1                 gsdq, --公司所属大区
+                org_salesorg.code            gsbm, --公司编码
+                org_salesorg.shortname        gsjc, --公司简称
+                org_salesorg.name             gsmc, --公司名称     
+                (CASE WHEN org_dept_v.name like '%事业部%'
+                THEN org_dept_v.name
+                ELSE org_salesorg.shortname 
+                END) hsdw,--核算单位    
+                bd_marbasclass.code           wlflbm, --物料小类编码
+                bd_marbasclass1.code          sjflbm, --上级物料分类编码
+                bd_marbasclass1.name          sjflmc, --上级物料分类名称
+                bd_marbasclass.name           wlflmc, --物料小类名称
+                bd_defdoc.name                fllb,  --5+2
+                bd_defdoc1.name               jjzmc, --聚焦镇
+                bd_defdoc1.code               jjzbm, --聚焦镇编码
+                bd_defdoc2.name               xsdqmc, --销售大区名称
+                bd_defdoc2.code               xsdqbm, --销售大区编码
+                bd_psndoc.name                ywdb,   --业务代表
+                bd_psndoc5.name               qyjl,--区域经理
+                bd_psndoc6.name               dqjl,--大区经理
+                bd_psndoc7.name               xsjl,--销售经理
+                substr(bd_customer.def11, 1, 10) khkhrq,     --客户开户日期
+                substr(bd_customer.def12, 1, 10) khthrq,     --客户提货日期
+                 (CASE WHEN bd_material.code like '7%'
+                THEN so_saleorder_b.nastnum
+                ELSE so_saleorder_b.nnum
+                END) * replace（bd_marbasclass.def1,'~','1') xsd,   --销售吨
+                so_saleorder_b.blargessflag blargessflag,   --是否赠品
+                so_buylargess.policy_code        xszcbm,--政策编码
+                so_buylargess.policy_name        xszcmc,--政策名称
+                bd_customer.code          khcode, --客户编码
+                bd_customer.pk_customer   PK_KH, --客户主键
+                bd_customer.name          khmc, --客户名称
+                bd_customer.def9          yxzjh,  --有效证件号
+                bd_custclass.code         khflbm, --客户分类编码
+                bd_custclass.name         khflmc, --客户分类名称
+                bd_psndoc.name            ywyxm,   --业务员姓名
+                org_dept_v.name           xsmc, --销售部门名称
+                substr(so_saleorder.creationtime,1,10) creationtime,--创建时间
+                bd_marbasclass.def1              xsdxs, --销售吨系数
+                bd_marbasclass.def2              scdxs, --生产吨系数
+                so_saleorder_b.dr,
+                 (CASE WHEN bd_material.code like '7%'
+                THEN so_saleorder_b.nastnum
+                ELSE so_saleorder_b.nnum
+                END)                          TYNUM--统一使用吨为单位 
+  FROM so_saleorder so_saleorder --订单主表
+  LEFT JOIN bd_billtype bd_billtype --单据类型
+    ON so_saleorder.ctrantypeid=bd_billtype.pk_billtypeid
+  LEFT JOIN so_saleorder_b so_saleorder_b --订单子表
+    ON so_saleorder.csaleorderid = so_saleorder_b.csaleorderid
+  LEFT JOIN so_buylargess so_buylargess --买赠
+    on so_saleorder_b.vbdef20=so_buylargess.pk_buylargess 
+  LEFT JOIN bd_customer bd_customer --客户
+    ON so_saleorder.ccustomerid = bd_customer.pk_customer
+  LEFT JOIN  bd_custsale bd_custsale
+    ON bd_customer.pk_customer=bd_custsale.pk_customer 
+  LEFT JOIN (select a.code,a.name,c.def1,c.pk_org,A.pk_salesorg,A.shortname   from 
+
+org_salesorg a
+    left join bd_custsale c
+    on c.PK_ORG=a.PK_ORG) org_salesorg
+    ON so_saleorder.PK_ORG=org_salesorg.pk_salesorg
+  LEFT JOIN (select a.code,a.name,c.def1,c.pk_org,C.pk_vid  from org_salesorg a
+    left join org_orgs c
+    on c.pk_vid=a.pk_vid) org_orgs 
+    ON so_saleorder.PK_ORG=org_orgs.pk_org
+  LEFT JOIN bd_custclass bd_custclass --客户分类
+    ON bd_customer.pk_custclass = bd_custclass.pk_custclass
+  LEFT JOIN bd_material bd_material --物料
+    ON so_saleorder_b.cmaterialvid = bd_material.pk_material
+  LEFT JOIN bd_stordoc bd_stordoc --仓库
+    ON so_saleorder_b.csendstordocid = bd_stordoc.pk_stordoc
+  LEFT JOIN bd_marbasclass bd_marbasclass --物料分类
+    ON bd_material.pk_marbasclass =bd_marbasclass.pk_marbasclass
+  LEFT JOIN bd_branddoc bd_branddoc  --品牌
+    ON bd_material.pk_brand = bd_branddoc.pk_brand
+  LEFT JOIN bd_marbasclass bd_marbasclass1 --上级分类
+    ON bd_marbasclass.pk_parent =bd_marbasclass1.pk_marbasclass
+  LEFT JOIN bd_psndoc bd_psndoc --自定义项1业务员
+    ON so_saleorder.cemployeeid = bd_psndoc.pk_psndoc
+  LEFT JOIN org_dept_v org_dept_v  --部门
+    ON so_saleorder.cdeptvid = org_dept_v.pk_vid
+  LEFT JOIN bd_defdoc bd_defdoc  --5+2
+    ON bd_material.def1 = bd_defdoc.pk_defdoc
+  LEFT JOIN bd_defdoc bd_defdoc1 --定义3聚焦镇
+    ON so_saleorder.vdef3= bd_defdoc1.pk_defdoc
+  LEFT JOIN bd_defdoc bd_defdoc2 --定义4销售大区名称
+    ON so_saleorder.vdef4 = bd_defdoc2.pk_defdoc
+  LEFT JOIN bd_defdoc bd_defdoc3  --定义5所属大区名称
+    ON so_saleorder.vdef5 =bd_defdoc3.pk_defdoc
+  LEFT JOIN bd_psndoc bd_psndoc5 --定义8区域经理
+    ON so_saleorder.vdef8 = bd_psndoc5.pk_psndoc    
+  LEFT JOIN bd_psndoc bd_psndoc6 --定义9大区经理
+    ON so_saleorder.vdef9 = bd_psndoc6.pk_psndoc
+  LEFT JOIN bd_psndoc bd_psndoc7 --定义7销售经理
+    ON so_saleorder.vdef7 = bd_psndoc7.pk_psndoc
+  LEFT JOIN bd_measdoc bd_measdoc1 
+    ON so_saleorder_b.cunitid = bd_measdoc1.pk_measdoc
+  LEFT JOIN bd_measdoc bd_measdoc2 
+    ON so_saleorder_b.castunitid = bd_measdoc2.pk_measdoc
+
+
+  WHERE  substr(so_saleorder.modifiedtime,1,10) >= '${updtime}'
+  AND bd_marbasclass.CODE LIKE '2%'
+  AND org_salesorg.code&lt;&gt;'1018'</sql>
+    <limit>0</limit>
+    <lookup />
+    <execute_each_row>N</execute_each_row>
+    <variables_active>Y</variables_active>
+    <lazy_conversion_active>N</lazy_conversion_active>
+    <cluster_schema />
+    <remotesteps>
+      <input>
+      </input>
+      <output>
+      </output>
+    </remotesteps>
+    <GUI>
+      <xloc>416</xloc>
+      <yloc>208</yloc>
+      <draw>Y</draw>
+    </GUI>
+  </step>
+  <step>
+    <name>插入主表临时表</name>
+    <type>TableOutput</type>
+    <description />
+    <distribute>Y</distribute>
+    <custom_distribution />
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <connection>finereport_fbdbuser</connection>
+    <schema>fbdbuser</schema>
+    <table>F_SALES_TEMP</table>
+    <commit>1000</commit>
+    <truncate>N</truncate>
+    <ignore_errors>N</ignore_errors>
+    <use_batch>Y</use_batch>
+    <specify_fields>Y</specify_fields>
+    <partitioning_enabled>N</partitioning_enabled>
+    <partitioning_field />
+    <partitioning_daily>N</partitioning_daily>
+    <partitioning_monthly>Y</partitioning_monthly>
+    <tablename_in_field>N</tablename_in_field>
+    <tablename_field />
+    <tablename_in_table>Y</tablename_in_table>
+    <return_keys>N</return_keys>
+    <return_field />
+    <fields>
+      <field>
+        <column_name>DBILLDATE</column_name>
+        <stream_name>DBILLDATE</stream_name>
+      </field>
+      <field>
+        <column_name>DBILLDATE_YEAR</column_name>
+        <stream_name>DBILLDATE_YEAR</stream_name>
+      </field>
+      <field>
+        <column_name>DBILLDATE_MONTH</column_name>
+        <stream_name>DBILLDATE_MONTH</stream_name>
+      </field>
+      <field>
+        <column_name>CSALEORDERID</column_name>
+        <stream_name>CSALEORDERID</stream_name>
+      </field>
+      <field>
+        <column_name>DDZT</column_name>
+        <stream_name>DDZT</stream_name>
+      </field>
+      <field>
+        <column_name>BILLTYPENAME</column_name>
+        <stream_name>BILLTYPENAME</stream_name>
+      </field>
+      <field>
+        <column_name>VBILLCODE</column_name>
+        <stream_name>VBILLCODE</stream_name>
+      </field>
+      <field>
+        <column_name>CEYY</column_name>
+        <stream_name>CEYY</stream_name>
+      </field>
+      <field>
+        <column_name>NASTNUM</column_name>
+        <stream_name>NASTNUM</stream_name>
+      </field>
+      <field>
+        <column_name>FDW</column_name>
+        <stream_name>FDW</stream_name>
+      </field>
+      <field>
+        <column_name>NNUM</column_name>
+        <stream_name>NNUM</stream_name>
+      </field>
+      <field>
+        <column_name>ZDW</column_name>
+        <stream_name>ZDW</stream_name>
+      </field>
+      <field>
+        <column_name>JSHJ</column_name>
+        <stream_name>JSHJ</stream_name>
+      </field>
+      <field>
+        <column_name>CROWNO</column_name>
+        <stream_name>CROWNO</stream_name>
+      </field>
+      <field>
+        <column_name>WLBM</column_name>
+        <stream_name>WLBM</stream_name>
+      </field>
+      <field>
+        <column_name>WLMC</column_name>
+        <stream_name>WLMC</stream_name>
+      </field>
+      <field>
+        <column_name>WLXH</column_name>
+        <stream_name>WLXH</stream_name>
+      </field>
+      <field>
+        <column_name>WLPP</column_name>
+        <stream_name>WLPP</stream_name>
+      </field>
+      <field>
+        <column_name>CKZJ</column_name>
+        <stream_name>CKZJ</stream_name>
+      </field>
+      <field>
+        <column_name>FHCK</column_name>
+        <stream_name>FHCK</stream_name>
+      </field>
+      <field>
+        <column_name>GSDQ</column_name>
+        <stream_name>GSDQ</stream_name>
+      </field>
+      <field>
+        <column_name>GSBM</column_name>
+        <stream_name>GSBM</stream_name>
+      </field>
+      <field>
+        <column_name>GSJC</column_name>
+        <stream_name>GSJC</stream_name>
+      </field>
+      <field>
+        <column_name>GSMC</column_name>
+        <stream_name>GSMC</stream_name>
+      </field>
+      <field>
+        <column_name>WLFLBM</column_name>
+        <stream_name>WLFLBM</stream_name>
+      </field>
+      <field>
+        <column_name>SJFLBM</column_name>
+        <stream_name>SJFLBM</stream_name>
+      </field>
+      <field>
+        <column_name>SJFLMC</column_name>
+        <stream_name>SJFLMC</stream_name>
+      </field>
+      <field>
+        <column_name>WLFLMC</column_name>
+        <stream_name>WLFLMC</stream_name>
+      </field>
+      <field>
+        <column_name>FLLB</column_name>
+        <stream_name>FLLB</stream_name>
+      </field>
+      <field>
+        <column_name>JJZMC</column_name>
+        <stream_name>JJZMC</stream_name>
+      </field>
+      <field>
+        <column_name>JJZBM</column_name>
+        <stream_name>JJZBM</stream_name>
+      </field>
+      <field>
+        <column_name>XSDQMC</column_name>
+        <stream_name>XSDQMC</stream_name>
+      </field>
+      <field>
+        <column_name>XSDQBM</column_name>
+        <stream_name>XSDQBM</stream_name>
+      </field>
+      <field>
+        <column_name>YWDB</column_name>
+        <stream_name>YWDB</stream_name>
+      </field>
+      <field>
+        <column_name>QYJL</column_name>
+        <stream_name>QYJL</stream_name>
+      </field>
+      <field>
+        <column_name>DQJL</column_name>
+        <stream_name>DQJL</stream_name>
+      </field>
+      <field>
+        <column_name>XSJL</column_name>
+        <stream_name>XSJL</stream_name>
+      </field>
+      <field>
+        <column_name>KHKHRQ</column_name>
+        <stream_name>KHKHRQ</stream_name>
+      </field>
+      <field>
+        <column_name>KHTHRQ</column_name>
+        <stream_name>KHTHRQ</stream_name>
+      </field>
+      <field>
+        <column_name>XSD</column_name>
+        <stream_name>XSD</stream_name>
+      </field>
+      <field>
+        <column_name>BLARGESSFLAG</column_name>
+        <stream_name>BLARGESSFLAG</stream_name>
+      </field>
+      <field>
+        <column_name>XSZCBM</column_name>
+        <stream_name>XSZCBM</stream_name>
+      </field>
+      <field>
+        <column_name>XSZCMC</column_name>
+        <stream_name>XSZCMC</stream_name>
+      </field>
+      <field>
+        <column_name>KHCODE</column_name>
+        <stream_name>KHCODE</stream_name>
+      </field>
+      <field>
+        <column_name>KHMC</column_name>
+        <stream_name>KHMC</stream_name>
+      </field>
+      <field>
+        <column_name>YXZJH</column_name>
+        <stream_name>YXZJH</stream_name>
+      </field>
+      <field>
+        <column_name>KHFLBM</column_name>
+        <stream_name>KHFLBM</stream_name>
+      </field>
+      <field>
+        <column_name>KHFLMC</column_name>
+        <stream_name>KHFLMC</stream_name>
+      </field>
+      <field>
+        <column_name>YWYXM</column_name>
+        <stream_name>YWYXM</stream_name>
+      </field>
+      <field>
+        <column_name>XSMC</column_name>
+        <stream_name>XSMC</stream_name>
+      </field>
+      <field>
+        <column_name>CREATIONTIME</column_name>
+        <stream_name>CREATIONTIME</stream_name>
+      </field>
+      <field>
+        <column_name>XSDXS</column_name>
+        <stream_name>XSDXS</stream_name>
+      </field>
+      <field>
+        <column_name>SCDXS</column_name>
+        <stream_name>SCDXS</stream_name>
+      </field>
+      <field>
+        <column_name>TYNUM</column_name>
+        <stream_name>TYNUM</stream_name>
+      </field>
+      <field>
+        <column_name>DR</column_name>
+        <stream_name>DR</stream_name>
+      </field>
+      <field>
+        <column_name>PK_KH</column_name>
+        <stream_name>PK_KH</stream_name>
+      </field>
+      <field>
+        <column_name>HSDW</column_name>
+        <stream_name>HSDW</stream_name>
+      </field>
+    </fields>
+    <cluster_schema />
+    <remotesteps>
+      <input>
+      </input>
+      <output>
+      </output>
+    </remotesteps>
+    <GUI>
+      <xloc>576</xloc>
+      <yloc>208</yloc>
+      <draw>Y</draw>
+    </GUI>
+  </step>
+  <step>
+    <name>获取更新时间变量</name>
+    <type>GetVariable</type>
+    <description />
+    <distribute>Y</distribute>
+    <custom_distribution />
+    <copies>1</copies>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <fields>
+      <field>
+        <name>updtime</name>
+        <variable>updtime</variable>
+        <type>String</type>
+        <format>yyyy-MM-dd</format>
+        <currency />
+        <decimal />
+        <group />
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <cluster_schema />
+    <remotesteps>
+      <input>
+      </input>
+      <output>
+      </output>
+    </remotesteps>
+    <GUI>
+      <xloc>224</xloc>
+      <yloc>208</yloc>
+      <draw>Y</draw>
+    </GUI>
+  </step>
+  <step_error_handling>
+  </step_error_handling>
+  <slave-step-copy-partition-distribution>
+  </slave-step-copy-partition-distribution>
+  <slave_transformation>N</slave_transformation>
+</transformation>

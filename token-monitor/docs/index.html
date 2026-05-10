@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token消耗监控</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background: #f5f5f5; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        h1 { font-size: 1.5rem; color: #333; }
+        .status { font-size: 0.8rem; color: #666; }
+        .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .card-title { font-size: 1.1rem; color: #333; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .badge { padding: 4px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; }
+        .badge-mimo { background: #667eea; color: white; }
+        .badge-deepseek { background: #f5576c; color: white; }
+        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .stat { text-align: center; padding: 10px; background: #f8f9fa; border-radius: 8px; }
+        .stat-label { font-size: 0.75rem; color: #666; display: block; }
+        .stat-value { font-size: 1.2rem; font-weight: 700; color: #333; display: block; margin-top: 4px; }
+        .progress { height: 8px; background: #e9ecef; border-radius: 4px; margin-top: 15px; overflow: hidden; }
+        .progress-bar { height: 100%; border-radius: 4px; transition: width 0.5s; }
+        .progress-mimo { background: linear-gradient(90deg, #667eea, #764ba2); }
+        .footer { text-align: center; margin-top: 20px; font-size: 0.8rem; color: #999; }
+        .link { text-align: center; margin-top: 12px; }
+        .link a { color: #667eea; font-size: 0.85rem; text-decoration: none; }
+        .link a:hover { text-decoration: underline; }
+        .link-ds a { color: #f5576c; }
+        .notice { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 12px; margin-bottom: 20px; font-size: 0.85rem; color: #856404; }
+        @media (max-width: 768px) { .dashboard { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Token消耗监控</h1>
+        <span class="status">静态版本</span>
+    </div>
+
+    <div class="notice">
+        ⚠️ 这是静态版本，数据为快照。实时数据请<a href="https://github.com/CaiQingsong8/token-monitor" target="_blank" style="color:#856404;font-weight:600;">部署本地版本</a>。
+    </div>
+
+    <div class="dashboard">
+        <div class="card">
+            <div class="card-title">
+                mimo
+                <span class="badge badge-mimo">Token</span>
+            </div>
+            <div class="stats">
+                <div class="stat">
+                    <span class="stat-label">总Token</span>
+                    <span class="stat-value">700,000,000</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">已使用</span>
+                    <span class="stat-value">83,559,255</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">剩余</span>
+                    <span class="stat-value">616,440,745</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">使用率</span>
+                    <span class="stat-value">11.94%</span>
+                </div>
+            </div>
+            <div class="progress">
+                <div class="progress-bar progress-mimo" style="width: 11.94%"></div>
+            </div>
+            <div class="link">
+                <a href="https://platform.xiaomimimo.com/console/plan-manage" target="_blank">查看用量详情 →</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">
+                deepseek
+                <span class="badge badge-deepseek">余额</span>
+            </div>
+            <div class="stats">
+                <div class="stat">
+                    <span class="stat-label">总余额</span>
+                    <span class="stat-value">¥18.33</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">已充值</span>
+                    <span class="stat-value">¥18.33</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">赠送</span>
+                    <span class="stat-value">¥0.00</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">状态</span>
+                    <span class="stat-value">正常</span>
+                </div>
+            </div>
+            <div class="link link-ds">
+                <a href="https://platform.deepseek.com/usage" target="_blank">查看用量详情 →</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        数据快照时间: 2026-05-09 21:22 | <a href="https://github.com/CaiQingsong8/token-monitor" target="_blank" style="color:#667eea;">GitHub</a>
+    </div>
+</body>
+</html>

@@ -2,9 +2,8 @@
 .ai/
 LLG/
 token-monitor/
-Personal/douyin-video/output/
+Personal/
 .claude/
-Personal/douyin-video/*.mp4
 .DS_Store
 *.swp
 settings.jsondeepseek

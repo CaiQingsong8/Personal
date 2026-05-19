@@ -4,18 +4,9 @@ LLG/
 token-monitor/
 Personal/
 .claude/
+ck-table-view/
 .DS_Store
 *.swp
 settings.jsondeepseek
 settings.jsonxiaomi
 BI新人必读.docx
-# Node
-node_modules/
-package-lock.json
-
-# Claude Code 临时文件
-workflow_*.json
-create_ppt.js
-
-# 生成的 PPT 脚本（按需保留）
-# *.pptx

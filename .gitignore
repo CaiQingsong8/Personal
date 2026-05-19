@@ -4,9 +4,11 @@ LLG/
 token-monitor/
 Personal/
 .claude/
-ck-table-view/
+.vscode/
+table-dict/
 .DS_Store
 *.swp
 settings.jsondeepseek
 settings.jsonxiaomi
 BI新人必读.docx
+build-your-own-x/

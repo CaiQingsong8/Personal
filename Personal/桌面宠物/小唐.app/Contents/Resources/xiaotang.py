@@ -15,6 +15,7 @@
 """
 
 import tkinter as tk
+from tkinter import ttk
 import threading, time, datetime, subprocess, sys, os, json, re, random
 from pathlib import Path
 from PIL import Image
@@ -252,14 +253,42 @@ def get_weather(city="深圳"):
                 capture_output=True, text=True, timeout=10)
             out = r.stdout.strip()
             if out and len(out) < 50 and "Unknown" not in out and "ERROR" not in out:
+                # 翻译成中文
+                out = _translate_weather(out)
                 return _weather_emoji(out) + " " + out
         except:
             pass
         time.sleep(1)
     return "🌤 天气未知"
 
+def _translate_weather(text):
+    """将英文天气翻译成中文"""
+    t = text.lower()
+    mapping = [
+        ("thunderstorm", "雷暴"), ("thunder", "雷阵雨"),
+        ("heavy rain", "大雨"), ("light rain", "小雨"), ("moderate rain", "中雨"),
+        ("patchy rain", "阵雨"), ("drizzle", "毛毛雨"), ("rain", "雨"),
+        ("heavy snow", "大雪"), ("light snow", "小雪"), ("snow", "雪"),
+        ("sleet", "雨夹雪"),
+        ("clear", "晴天"), ("sunny", "晴天"),
+        ("partly cloudy", "多云"), ("cloudy", "阴天"), ("overcast", "阴天"),
+        ("fog", "雾"), ("mist", "薄雾"), ("haze", "霾"),
+        ("blizzard", "暴风雪"), ("windy", "大风"),
+    ]
+    for eng, chn in mapping:
+        if eng in t:
+            # 提取温度
+            import re
+            temp = re.search(r'[+-]?\d+°?[CcFf]?', text)
+            temp_str = temp.group() if temp else ""
+            return f"{chn} {temp_str}".strip()
+    return text
+
 # ══════ 语音 ══════
 _say_proc = None  # 上一个 say 进程，用于避免重叠
+_voice_name = "Meijia"
+_voice_rate = 210
+_voice_volume = 80
 
 def speak(text):
     # 去除 emoji，保留中英文和标点
@@ -269,6 +298,8 @@ def speak(text):
         '', text, flags=re.UNICODE).strip()
     if not clean:
         return
+    # 添加停顿：在标点后加逗号，让语音更自然
+    clean = re.sub(r'([。！？])', r'，', clean)
     # 非阻塞方式启动 say，避免线程 GIL 冲突
     global _say_proc
     try:
@@ -278,7 +309,7 @@ def speak(text):
         pass
     try:
         _say_proc = subprocess.Popen(
-            ["say", "-v", "Ting-Ting", "-r", "175", clean],
+            ["say", "-v", _voice_name, "-r", str(_voice_rate), clean],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except:
         pass
@@ -448,10 +479,17 @@ class DataManager:
             "schedules": [], "history": [], "notes": {},
             "templates": [t.copy() for t in DEFAULT_TEMPLATES],
             "event_counts": {},
+            "voice": {"name": "Meijia", "rate": 210, "volume": 80},
+            "pet_name": "小唐",
         }
         self._load()
         # 强制重置模板为最新默认值
         self.data["templates"] = [t.copy() for t in DEFAULT_TEMPLATES]
+        # 确保语音设置存在
+        if "voice" not in self.data:
+            self.data["voice"] = {"name": "Meijia", "rate": 210, "volume": 80}
+        if "pet_name" not in self.data:
+            self.data["pet_name"] = "小唐"
 
     def _load(self):
         if DATA_FILE.exists() and DATA_FILE.stat().st_size > 0:
@@ -460,6 +498,25 @@ class DataManager:
                     self.data.update(json.load(f))
             except Exception as e:
                 log(f"数据加载失败: {e}")
+        # 同步语音设置到全局变量
+        self._sync_voice()
+
+    def _sync_voice(self):
+        global _voice_name, _voice_rate, _voice_volume
+        v = self.data.get("voice", {})
+        _voice_name = v.get("name", "Meijia")
+        _voice_rate = v.get("rate", 210)
+        _voice_volume = v.get("volume", 80)
+
+    def set_voice(self, name, rate, volume=None):
+        v = {"name": name, "rate": rate}
+        if volume is not None:
+            v["volume"] = volume
+        else:
+            v["volume"] = self.data.get("voice", {}).get("volume", 80)
+        self.data["voice"] = v
+        self.save()
+        self._sync_voice()
 
     def save(self):
         try:
@@ -539,8 +596,7 @@ class XiaoTang:
         "主人在认真工作呢~ 🌟",
         "有什么需要帮忙的吗？",
         "今天辛苦啦，多喝水哦！",
-        "喵~ 小唐一直陪着你！",
-        "小唐最喜欢主人了 💕",
+        "我最喜欢主人了 💕",
         "要不要休息一下眼睛呀？",
         "加油加油！主人最棒了！✨",
         "时间过得好快，注意休息哟~",
@@ -670,7 +726,7 @@ class XiaoTang:
             menu.attributes("-topmost", True)
             self._cat_menu_win = menu
 
-            bw = 180
+            bw = 280
 
             def _close_menu(e=None):
                 try: menu.destroy()
@@ -697,13 +753,13 @@ class XiaoTang:
                     wd = wds[now.weekday()]
                     holiday = _get_holiday()
                     if holiday:
-                        msg = f"喵~ 主人你好呀！今天是{ds}{wd}，{holiday}快乐！🎊"
+                        msg = f"主人你好呀！今天是{ds}{wd}，{holiday}快乐！🎊"
                     elif now.weekday() == 4:
-                        msg = f"喵~ 主人你好呀！今天是{ds}{wd}，终于周五啦！马上就可以休息了！🎉"
+                        msg = f"主人你好呀！今天是{ds}{wd}，终于周五啦！马上就可以休息了！🎉"
                     elif now.weekday() == 5:
-                        msg = f"喵~ 主人你好呀！今天是{ds}{wd}，主人加班辛苦了，下班就可以美美休息了呢~ 💪"
+                        msg = f"主人你好呀！今天是{ds}{wd}，主人加班辛苦了，下班就可以美美休息了呢~ 💪"
                     else:
-                        msg = f"喵~ 主人你好呀！今天是{ds}{wd}。"
+                        msg = f"主人你好呀！今天是{ds}{wd}。"
                     self._enqueue(msg)
                 btn = tk.Button(menu, text="💬 打招呼", cursor="arrow",
                                 command=lambda: (_close_menu(), _greet()),
@@ -769,6 +825,55 @@ class XiaoTang:
                             b.pack(fill="x")
 
             _refresh_todos()
+
+            # 语音设置区（2行：人声一行，语速+音量一行）
+            tk.Frame(menu, bg="#DDD", height=1).pack(fill="x", padx=8)
+
+            # 第一行：人声
+            v1 = tk.Frame(menu, bg="#FFF5EB")
+            v1.pack(fill="x")
+            voices = ["Meijia", "Ting-Ting", "Sandy", "Shelley", "Flo"]
+            current_voice = self.dm.data.get("voice", {}).get("name", "Meijia")
+            v_voice = tk.StringVar(value=current_voice)
+            tk.Label(v1, text="人声", bg="#FFF5EB", fg="#555",
+                     font=("PingFang SC", 10)).pack(side="left", padx=(14, 2))
+            cb_voice = ttk.Combobox(v1, textvariable=v_voice, values=voices,
+                                     width=12, state="readonly", font=("PingFang SC", 10))
+            cb_voice.pack(side="left", padx=2)
+
+            # 第二行：语速 + 音量
+            v2 = tk.Frame(menu, bg="#FFF5EB")
+            v2.pack(fill="x")
+            speeds = {"慢": 150, "中": 210, "快": 280}
+            current_rate = self.dm.data.get("voice", {}).get("rate", 210)
+            speed_label = [k for k, v in speeds.items() if v == current_rate][0] if current_rate in speeds.values() else "中"
+            v_speed = tk.StringVar(value=speed_label)
+            tk.Label(v2, text="语速", bg="#FFF5EB", fg="#555",
+                     font=("PingFang SC", 10)).pack(side="left", padx=(14, 2))
+            cb_speed = ttk.Combobox(v2, textvariable=v_speed,
+                                     values=list(speeds.keys()),
+                                     width=3, state="readonly", font=("PingFang SC", 10))
+            cb_speed.pack(side="left", padx=2)
+
+            volumes = {"静音": 0, "低": 30, "中": 60, "高": 80, "最大": 100}
+            current_vol = self.dm.data.get("voice", {}).get("volume", 80)
+            vol_label = [k for k, v in volumes.items() if v == current_vol][0] if current_vol in volumes.values() else "高"
+            v_vol = tk.StringVar(value=vol_label)
+            tk.Label(v2, text="音量", bg="#FFF5EB", fg="#555",
+                     font=("PingFang SC", 10)).pack(side="left", padx=(8, 2))
+            cb_vol = ttk.Combobox(v2, textvariable=v_vol,
+                                   values=list(volumes.keys()),
+                                   width=3, state="readonly", font=("PingFang SC", 10))
+            cb_vol.pack(side="left", padx=2)
+
+            def _apply_voice():
+                vn = v_voice.get()
+                spd = speeds.get(v_speed.get(), 210)
+                vol = volumes.get(v_vol.get(), 80)
+                self.dm.set_voice(vn, spd, vol)
+            cb_voice.bind("<<ComboboxSelected>>", lambda e: _apply_voice())
+            cb_speed.bind("<<ComboboxSelected>>", lambda e: _apply_voice())
+            cb_vol.bind("<<ComboboxSelected>>", lambda e: _apply_voice())
 
             tk.Frame(menu, bg="#DDD", height=1).pack(fill="x", padx=8)
             btn = tk.Button(menu, text="📅 打开日程本", cursor="arrow",
@@ -1136,6 +1241,9 @@ except Exception as e:
 
     # ─── 早间问候 ──────────────────────────
     def _morning_greeting(self):
+        if hasattr(self, '_greeting_done'):
+            return
+        self._greeting_done = True
         now = datetime.datetime.now()
         h   = now.hour
         greeting = ("早上好" if 5 <= h < 12 else
@@ -1223,7 +1331,8 @@ class ScheduleWindow(tk.Toplevel):
     def __init__(self, parent, dm):
         super().__init__(parent)
         self.dm = dm
-        self.title("📅 小唐的日程本")
+        pet_name = self.dm.data.get("pet_name", "小唐")
+        self.title(f"📅 {pet_name}的日程本")
         self.geometry("700x740")
         self.configure(bg="#FDF6EE")
         self.lift()
@@ -1241,8 +1350,39 @@ class ScheduleWindow(tk.Toplevel):
         bar = tk.Frame(self, bg="#87CEEB", height=52)
         bar.pack(fill="x")
         bar.pack_propagate(False)
-        tk.Label(bar, text="🐱 小唐的日程本", bg="#87CEEB", fg="black",
-                 font=("PingFang SC", 15, "bold")).pack(side="left", padx=16, pady=14)
+        pet_name = self.dm.data.get("pet_name", "小唐")
+
+        def _change_pet_name():
+            pop = tk.Toplevel(self)
+            pop.title("修改名字")
+            pop.geometry("250x100")
+            pop.configure(bg="#FDF6EE")
+            pop.transient(self)
+            pop.grab_set()
+            tk.Label(pop, text="新名字:", bg="#FDF6EE",
+                     font=("PingFang SC", 12)).pack(pady=(10, 2))
+            e = tk.Entry(pop, font=("PingFang SC", 12), width=12)
+            e.insert(0, pet_name)
+            e.pack()
+            def _ok():
+                name = e.get().strip()
+                if name:
+                    self.dm.data["pet_name"] = name
+                    self.dm.save()
+                    # 更新标题
+                    self.title(f"📅 {name}的日程本")
+                    title_label.config(text=f"🐱 {name}的日程本")
+                    pop.destroy()
+            tk.Button(pop, text="确定", command=_ok,
+                      bg="#87CEEB", fg="black", font=("PingFang SC", 11),
+                      relief="flat").pack(pady=6)
+
+        title_label = tk.Label(bar, text=f"🐱 {pet_name}的日程本", bg="#87CEEB", fg="black",
+                 font=("PingFang SC", 15, "bold"), cursor="hand2")
+        title_label.pack(side="left", padx=16, pady=14)
+        title_label.bind("<Button-1>", lambda e: _change_pet_name())
+        tk.Label(bar, text="✏️", bg="#87CEEB", fg="#555", cursor="hand2",
+                 font=("PingFang SC", 10)).pack(side="left")
         today = datetime.date.today()
         wds   = ["星期一","星期二","星期三","星期四","星期五","星期六","星期日"]
         tk.Label(bar, text=f"{today}  {wds[today.weekday()]}",
@@ -1276,9 +1416,12 @@ class ScheduleWindow(tk.Toplevel):
         if val == "schedule":
             self._f_hist.pack_forget()
             self._f_sched.pack(fill="both", expand=True)
+            self.update_idletasks()
+            self._refresh()
         else:
             self._f_sched.pack_forget()
             self._f_hist.pack(fill="both", expand=True)
+            self.update_idletasks()
             self._h_query()
 
     def _build_schedule(self, p):
@@ -1299,7 +1442,8 @@ class ScheduleWindow(tk.Toplevel):
                                           font=("PingFang SC", 12), values=title_values)
         self._title_combo.pack(side="left", padx=(0, 6))
         for txt, cmd in [("📋 历史", self._pick_history),
-                         ("⭐ 模板", self._pick_template)]:
+                         ("⭐ 模板", self._pick_template),
+                         ("✏️ 管理", self._manage_templates)]:
             tk.Button(r1, text=txt, command=cmd,
                       bg="#87CEEB", fg="black",
                       font=("PingFang SC", 11), relief="flat",
@@ -1463,6 +1607,82 @@ class ScheduleWindow(tk.Toplevel):
         self.dm.save()
         self.destroy()
 
+    def _manage_templates(self):
+        """管理模板：添加/删除"""
+        pop = tk.Toplevel(self)
+        pop.title("✏️ 管理模板")
+        pop.geometry("400x500")
+        pop.configure(bg="#FDF6EE")
+        pop.transient(self)
+        pop.grab_set()
+
+        tk.Label(pop, text="模板列表（可添加/删除）", bg="#FDF6EE",
+                 font=("PingFang SC", 12, "bold")).pack(pady=8)
+
+        listbox = tk.Listbox(pop, font=("PingFang SC", 12), height=12,
+                             bg="white", fg="#222", selectbackground="#87CEEB")
+        listbox.pack(fill="both", expand=True, padx=14, pady=4)
+
+        def _refresh_list():
+            listbox.delete(0, tk.END)
+            for t in self.dm.data.get("templates", []):
+                listbox.insert(tk.END, f"{t['start_time']}  {t['title']}  ({t['duration']}分钟)")
+        _refresh_list()
+
+        # 添加区
+        add_frame = tk.Frame(pop, bg="#FDF6EE")
+        add_frame.pack(fill="x", padx=14, pady=4)
+        tk.Label(add_frame, text="名称:", bg="#FDF6EE", font=("PingFang SC", 11)).pack(side="left")
+        e_title = tk.Entry(add_frame, width=10, font=("PingFang Sc", 11))
+        e_title.pack(side="left", padx=2)
+        tk.Label(add_frame, text="时间:", bg="#FDF6EE", font=("PingFang SC", 11)).pack(side="left")
+        e_time = tk.Entry(add_frame, width=5, font=("PingFang Sc", 11))
+        e_time.pack(side="left", padx=2)
+        tk.Label(add_frame, text="时长:", bg="#FDF6EE", font=("PingFang SC", 11)).pack(side="left")
+        e_dur = tk.Entry(add_frame, width=4, font=("PingFang Sc", 11))
+        e_dur.insert(0, "30")
+        e_dur.pack(side="left", padx=2)
+
+        def _add_template():
+            t = e_title.get().strip()
+            tm = e_time.get().strip()
+            d = e_dur.get().strip()
+            if not t or not tm:
+                return
+            try:
+                di = int(d)
+                assert 1 <= di <= 1440
+            except:
+                return
+            self.dm.data.setdefault("templates", []).append(
+                {"title": t, "start_time": tm, "duration": di})
+            self.dm.save()
+            e_title.delete(0, tk.END)
+            e_time.delete(0, tk.END)
+            _refresh_list()
+            self._title_combo["values"] = [t["title"] for t in self.dm.data.get("templates", [])]
+
+        tk.Button(add_frame, text="➕ 添加", command=_add_template,
+                  bg="#87CEEB", fg="black", font=("PingFang SC", 10),
+                  relief="flat", cursor="arrow").pack(side="left", padx=4)
+
+        # 删除按钮
+        def _del_template():
+            sel = listbox.curselection()
+            if not sel:
+                return
+            idx = sel[0]
+            templates = self.dm.data.get("templates", [])
+            if 0 <= idx < len(templates):
+                templates.pop(idx)
+                self.dm.save()
+                _refresh_list()
+                self._title_combo["values"] = [t["title"] for t in templates]
+
+        tk.Button(pop, text="🗑 删除选中", command=_del_template,
+                  bg="#FFB3A7", fg="black", font=("PingFang SC", 11),
+                  relief="flat", cursor="arrow").pack(pady=4)
+
     def _calc_end_time(self, start_time, duration):
         h, m = map(int, start_time.split(":"))
         total = h * 60 + m + duration
@@ -1603,7 +1823,7 @@ class ScheduleWindow(tk.Toplevel):
             fp = self._fd.asksaveasfilename(
                 defaultextension=".txt",
                 filetypes=[("文本", "*.txt")],
-                initialfile=f"小唐日程_{d0}_{d1}.txt",
+                initialfile=f"{pet_name}日程_{d0}_{d1}.txt",
                 parent=self)
             if fp:
                 Path(fp).write_text(
@@ -1613,7 +1833,7 @@ class ScheduleWindow(tk.Toplevel):
             fp = self._fd.asksaveasfilename(
                 defaultextension=".json",
                 filetypes=[("JSON", "*.json")],
-                initialfile=f"小唐日程_{d0}_{d1}.json",
+                initialfile=f"{pet_name}日程_{d0}_{d1}.json",
                 parent=self)
             if fp:
                 data = self.dm.schedules_in_range(d0, d1)

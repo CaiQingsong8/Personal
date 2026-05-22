@@ -518,6 +518,43 @@ class DataManager:
         self.save()
         self._sync_voice()
 
+    def import_data(self, filepath):
+        """导入JSON数据文件，合并到当前数据"""
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                new_data = json.load(f)
+            # 兼容两种格式：列表（导出格式）或字典（完整数据格式）
+            if isinstance(new_data, list):
+                # 列表格式：直接是日程列表
+                schedules = new_data
+                new_data = {"schedules": schedules}
+            elif not isinstance(new_data, dict):
+                return False, "文件格式错误"
+            # 合并日程（去重：同id不重复添加）
+            old_ids = {s["id"] for s in self.data.get("schedules", [])}
+            new_count = 0
+            for s in new_data.get("schedules", []):
+                if s.get("id") and s["id"] not in old_ids:
+                    self.data.setdefault("schedules", []).append(s)
+                    new_count += 1
+            # 合并历史
+            self.data.setdefault("history", []).extend(new_data.get("history", []))
+            # 合并笔记
+            self.data.setdefault("notes", {}).update(new_data.get("notes", {}))
+            # 合并模板
+            old_titles = {t["title"] for t in self.data.get("templates", [])}
+            for t in new_data.get("templates", []):
+                if t.get("title") and t["title"] not in old_titles:
+                    self.data.setdefault("templates", []).append(t)
+            # 合并事件计数
+            for k, v in new_data.get("event_counts", {}).items():
+                self.data.setdefault("event_counts", {})[k] = \
+                    self.data["event_counts"].get(k, 0) + v
+            self.save()
+            return True, f"导入成功！新增 {new_count} 条日程"
+        except Exception as e:
+            return False, f"导入失败: {e}"
+
     def save(self):
         try:
             with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -1455,17 +1492,30 @@ class ScheduleWindow(tk.Toplevel):
         # 默认时间：当前时间的下一个整点或半点
         now = datetime.datetime.now()
         if now.minute <= 30:
-            default_time = now.strftime("%H") + ":30"
+            default_h, default_m = now.hour, 30
         else:
-            default_time = (now + datetime.timedelta(hours=1)).strftime("%H") + ":00"
-        self.v_time = tk.StringVar(value=default_time)
-        tk.Entry(r2, textvariable=self.v_time, width=7,
-                 font=("PingFang SC", 12), bg="white", fg="#222").pack(side="left", padx=(0, 16))
-        tk.Label(r2, text="持续(分钟)：", bg="#FDF6EE",
+            default_h = (now.hour + 1) % 24
+            default_m = 0
+        # 小时下拉
+        hours = [f"{h:02d}" for h in range(24)]
+        self.v_hour = tk.StringVar(value=f"{default_h:02d}")
+        ttk.Combobox(r2, textvariable=self.v_hour, values=hours,
+                     width=3, state="readonly", font=("PingFang SC", 12)).pack(side="left")
+        tk.Label(r2, text="时", bg="#FDF6EE", font=("PingFang SC", 12)).pack(side="left")
+        # 分钟下拉
+        minutes = [f"{m:02d}" for m in range(0, 60, 5)]
+        self.v_min = tk.StringVar(value=f"{default_m:02d}")
+        ttk.Combobox(r2, textvariable=self.v_min, values=minutes,
+                     width=3, state="readonly", font=("PingFang SC", 12)).pack(side="left")
+        tk.Label(r2, text="分", bg="#FDF6EE", font=("PingFang SC", 12)).pack(side="left", padx=(0, 10))
+        tk.Label(r2, text="时长：", bg="#FDF6EE",
                  font=("PingFang SC", 12)).pack(side="left")
-        self.v_dur = tk.StringVar(value="30")
-        tk.Entry(r2, textvariable=self.v_dur, width=5,
-                 font=("PingFang SC", 12), bg="white", fg="#222").pack(side="left")
+        # 时长下拉（5-120分钟）
+        durations = [str(d) for d in range(5, 125, 5)]
+        self.v_dur = tk.StringVar(value="60")
+        ttk.Combobox(r2, textvariable=self.v_dur, values=durations,
+                     width=4, state="readonly", font=("PingFang SC", 12)).pack(side="left")
+        tk.Label(r2, text="分钟", bg="#FDF6EE", font=("PingFang SC", 12)).pack(side="left")
 
         tk.Button(af, text="  ✅ 添加  ", command=self._add,
                   bg="#87CEEB", fg="black",
@@ -1505,6 +1555,7 @@ class ScheduleWindow(tk.Toplevel):
 
         # 点击完成列切换状态
         self.tree.bind("<ButtonRelease-1>", self._on_tree_click)
+        self.tree.bind("<Double-1>", self._on_tree_edit)
 
         # 笔记
         nf = tk.LabelFrame(p, text=" 📝 今日笔记 ", bg="#FDF6EE",
@@ -1573,32 +1624,37 @@ class ScheduleWindow(tk.Toplevel):
         psb.pack(side="right", fill="y")
 
         br = tk.Frame(p, bg="#FDF6EE"); br.pack(pady=(4, 12))
-        for txt, fmt, bg, fg in [
-            ("💾 导出 TXT",  "txt",  "#87CEEB", "black"),
-            ("📊 导出 JSON", "json", "#B0E0E6", "black"),
+        for txt, cmd, bg, fg in [
+            ("💾 导出 TXT",  lambda: self._h_export("txt"),  "#87CEEB", "black"),
+            ("📊 导出 JSON", lambda: self._h_export("json"), "#B0E0E6", "black"),
+            ("📥 导入 JSON", self._h_import, "#90EE90", "black"),
         ]:
             tk.Button(br, text=txt,
-                      command=lambda f=fmt: self._h_export(f),
+                      command=cmd,
                       bg=bg, fg=fg,
                       font=("PingFang SC", 13, "bold"),
                       relief="flat", cursor="arrow").pack(side="left", padx=10)
 
     def _add(self):
         title = self.v_title.get().strip()
-        start = self.v_time.get().strip()
-        dur   = self.v_dur.get().strip()
+        h = self.v_hour.get().strip()
+        m = self.v_min.get().strip()
+        dur = self.v_dur.get().strip()
         if not title:
             self._mb.showwarning("提示", "请输入事件名称！", parent=self); return
-        if not re.match(r"^\d{1,2}:\d{2}$", start):
-            self._mb.showwarning("提示", "时间格式：HH:MM（如 09:30）", parent=self); return
         try:
             di = int(dur)
-            assert 1 <= di <= 1440
+            assert 5 <= di <= 120
         except:
-            self._mb.showwarning("提示", "时长应为 1-1440 分钟", parent=self); return
-        h, m = start.split(":")
-        self.dm.add_schedule(title, f"{int(h):02d}:{int(m):02d}", di)
+            self._mb.showwarning("提示", "时长应为 5-120 分钟", parent=self); return
+        start = f"{int(h):02d}:{int(m):02d}"
+        self.dm.add_schedule(title, start, di)
         self.v_title.set("")
+        # 自动设置下一个事件的开始时间 = 本次结束时间
+        end_total = int(h) * 60 + int(m) + di
+        next_h, next_m = divmod(end_total % 1440, 60)
+        self.v_hour.set(f"{next_h:02d}")
+        self.v_min.set(f"{next_m:02d}")
         # 更新下拉列表
         self._title_combo["values"] = [t["title"] for t in self.dm.data.get("templates", [])]
         self._refresh()
@@ -1725,6 +1781,75 @@ class ScheduleWindow(tk.Toplevel):
                 break
         self._refresh()
 
+    def _on_tree_edit(self, event):
+        """双击编辑事件"""
+        region = self.tree.identify_region(event.x, event.y)
+        if region != "cell":
+            return
+        iid = self.tree.identify_row(event.y)
+        if not iid:
+            return
+        # 找到对应事件
+        item = None
+        for s in self.dm.data["schedules"]:
+            if str(s["id"]) == iid:
+                item = s
+                break
+        if not item:
+            return
+
+        # 编辑弹窗
+        pop = tk.Toplevel(self)
+        pop.title("✏️ 编辑事件")
+        pop.geometry("300x200")
+        pop.configure(bg="#FDF6EE")
+        pop.transient(self)
+        pop.grab_set()
+
+        tk.Label(pop, text="事件名称：", bg="#FDF6EE",
+                 font=("PingFang SC", 11)).pack(anchor="w", padx=14, pady=(10, 2))
+        e_title = tk.Entry(pop, font=("PingFang SC", 11), width=20)
+        e_title.insert(0, item["title"])
+        e_title.pack(padx=14)
+
+        row = tk.Frame(pop, bg="#FDF6EE")
+        row.pack(fill="x", padx=14, pady=4)
+        tk.Label(row, text="时间：", bg="#FDF6EE",
+                 font=("PingFang SC", 11)).pack(side="left")
+        h, m = item["start_time"].split(":")
+        e_h = ttk.Combobox(row, values=[f"{x:02d}" for x in range(24)],
+                            width=3, state="readonly", font=("PingFang SC", 11))
+        e_h.set(h)
+        e_h.pack(side="left")
+        tk.Label(row, text="时", bg="#FDF6EE", font=("PingFang SC", 11)).pack(side="left")
+        e_m = ttk.Combobox(row, values=[f"{x:02d}" for x in range(0, 60, 5)],
+                            width=3, state="readonly", font=("PingFang SC", 11))
+        e_m.set(m)
+        e_m.pack(side="left")
+        tk.Label(row, text="分", bg="#FDF6EE", font=("PingFang SC", 11)).pack(side="left")
+
+        row2 = tk.Frame(pop, bg="#FDF6EE")
+        row2.pack(fill="x", padx=14, pady=4)
+        tk.Label(row2, text="时长：", bg="#FDF6EE",
+                 font=("PingFang SC", 11)).pack(side="left")
+        e_dur = ttk.Combobox(row2, values=[str(d) for d in range(5, 125, 5)],
+                              width=4, state="readonly", font=("PingFang SC", 11))
+        e_dur.set(str(item.get("duration", 60)))
+        e_dur.pack(side="left")
+        tk.Label(row2, text="分钟", bg="#FDF6EE", font=("PingFang SC", 11)).pack(side="left")
+
+        def _save():
+            item["title"] = e_title.get().strip() or item["title"]
+            item["start_time"] = f"{int(e_h.get()):02d}:{int(e_m.get()):02d}"
+            item["duration"] = int(e_dur.get())
+            self.dm.save()
+            self._refresh()
+            pop.destroy()
+
+        tk.Button(pop, text="✅ 保存", command=_save,
+                  bg="#87CEEB", fg="black", font=("PingFang SC", 11),
+                  relief="flat").pack(pady=8)
+
     def _delete(self):
         for iid in self.tree.selection():
             self.dm.data["schedules"] = [
@@ -1818,6 +1943,7 @@ class ScheduleWindow(tk.Toplevel):
         self.h_prev.configure(state="disabled")
 
     def _h_export(self, fmt):
+        pet_name = self.dm.data.get("pet_name", "小唐")
         d0, d1 = self.hv_from.get().strip(), self.hv_to.get().strip()
         if fmt == "txt":
             fp = self._fd.asksaveasfilename(
@@ -1843,6 +1969,22 @@ class ScheduleWindow(tk.Toplevel):
                     json.dumps(data, ensure_ascii=False, indent=2),
                     encoding="utf-8")
                 self._mb.showinfo("✅ 导出成功", f"已保存：\n{fp}", parent=self)
+
+    def _h_import(self):
+        """导入JSON数据"""
+        fp = self._fd.askopenfilename(
+            filetypes=[("JSON", "*.json")],
+            title="选择要导入的JSON文件",
+            parent=self)
+        if not fp:
+            return
+        ok, msg = self.dm.import_data(fp)
+        if ok:
+            self._mb.showinfo("✅ 导入成功", msg, parent=self)
+            self._refresh()
+            self._title_combo["values"] = [t["title"] for t in self.dm.data.get("templates", [])]
+        else:
+            self._mb.showerror("导入失败", msg, parent=self)
 
 # ══════ 入口 ══════
 if __name__ == "__main__":

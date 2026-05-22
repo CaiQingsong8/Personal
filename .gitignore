@@ -2,7 +2,8 @@
 .ai/
 LLG/
 token-monitor/
-Personal/
+Personal/*
+!Personal/桌面宠物/
 .claude/
 .vscode/
 table-dict/

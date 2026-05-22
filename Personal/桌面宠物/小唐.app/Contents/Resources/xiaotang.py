@@ -24,6 +24,44 @@ ASSET_DIR = BASE_DIR / "Assets"
 DATA_FILE = BASE_DIR / "xiaotang_data.json"
 LOG_FILE  = BASE_DIR / "debug.log"
 
+# ══════ 节日 ══════
+# 法定节假日 + 农历重要节日（公历日期）
+HOLIDAYS = {
+    # 法定节假日
+    "01-01": "元旦",
+    "05-01": "劳动节",
+    "10-01": "国庆节",
+    "10-02": "国庆节",
+    "10-03": "国庆节",
+    # 农历节日（固定公历日期近似）
+    "01-01": "春节",
+    "01-02": "春节",
+    "01-03": "春节",
+    "01-15": "元宵节",
+    "04-05": "清明节",
+    "05-05": "端午节",
+    "07-07": "七夕节",
+    "07-15": "中元节",
+    "08-15": "中秋节",
+    "09-09": "重阳节",
+    "12-30": "除夕",
+    # 其他节日
+    "02-14": "情人节",
+    "03-08": "妇女节",
+    "03-12": "植树节",
+    "04-01": "愚人节",
+    "06-01": "儿童节",
+    "09-10": "教师节",
+    "12-24": "平安夜",
+    "12-25": "圣诞节",
+    "11-11": "双十一",
+}
+
+def _get_holiday():
+    """获取今天的节日"""
+    today = datetime.date.today().strftime("%m-%d")
+    return HOLIDAYS.get(today)
+
 # ══════ 日志 ══════
 _log_lock = threading.Lock()
 def log(msg):
@@ -136,6 +174,7 @@ class _CatWindow(AppKit.NSWindow):
     _drag_moved          = False
     _last_click_t        = 0
     _left_click_pending  = False
+    _right_click_pending = False
 
     def mouseDown_(self, evt):
         try:
@@ -174,6 +213,12 @@ class _CatWindow(AppKit.NSWindow):
                     self._left_click_pending = True
         except Exception as e:
             log(f"mouseUp_ 异常: {e}")
+
+    def rightMouseDown_(self, evt):
+        try:
+            self._right_click_pending = True
+        except:
+            pass
 
     def acceptsFirstResponder(self): return True
     def canBecomeKeyWindow(self):    return True
@@ -385,16 +430,16 @@ class BubblePanel:
 
 # ══════ 数据管理 ══════
 DEFAULT_TEMPLATES = [
-    {"title": "晨间圆圈时间",       "start_time": "08:30", "duration": 20},
-    {"title": "自由活动与区域游戏",  "start_time": "09:00", "duration": 45},
-    {"title": "户外体能活动",        "start_time": "09:50", "duration": 30},
-    {"title": "主题教学活动",        "start_time": "10:30", "duration": 25},
-    {"title": "洗手/午餐准备",       "start_time": "11:00", "duration": 15},
-    {"title": "午餐时间",            "start_time": "11:15", "duration": 30},
-    {"title": "午睡时间",            "start_time": "12:00", "duration": 90},
-    {"title": "下午点心时间",        "start_time": "14:30", "duration": 20},
-    {"title": "亲子阅读/绘本分享",   "start_time": "15:00", "duration": 25},
-    {"title": "放学整理与家长沟通",  "start_time": "16:30", "duration": 30},
+    {"title": "家长接送沟通",        "start_time": "08:00", "duration": 20},
+    {"title": "团队例会",            "start_time": "09:00", "duration": 30},
+    {"title": "家长到访接待",        "start_time": "09:30", "duration": 60},
+    {"title": "新家长咨询接待",      "start_time": "10:00", "duration": 45},
+    {"title": "销售跟进电话",        "start_time": "11:00", "duration": 30},
+    {"title": "家长满意度回访",      "start_time": "13:30", "duration": 30},
+    {"title": "个案评估观察",        "start_time": "14:00", "duration": 60},
+    {"title": "课程体验安排",        "start_time": "15:00", "duration": 45},
+    {"title": "排课与课表调整",      "start_time": "16:00", "duration": 30},
+    {"title": "家长接送沟通",        "start_time": "17:00", "duration": 20},
 ]
 
 class DataManager:
@@ -405,11 +450,8 @@ class DataManager:
             "event_counts": {},
         }
         self._load()
-        existing = {(t["title"] if isinstance(t, dict) else t)
-                    for t in self.data["templates"]}
-        for dt in DEFAULT_TEMPLATES:
-            if dt["title"] not in existing:
-                self.data["templates"].append(dt.copy())
+        # 强制重置模板为最新默认值
+        self.data["templates"] = [t.copy() for t in DEFAULT_TEMPLATES]
 
     def _load(self):
         if DATA_FILE.exists() and DATA_FILE.stat().st_size > 0:
@@ -484,7 +526,7 @@ class DataManager:
 
 # ══════ 主程序 ══════
 class XiaoTang:
-    SIZE = 220
+    SIZE = 192
     FIXED_REMINDERS = [
         ("10:00", "主人，记得喝水休息一下哦~ 💧"),
         ("12:00", "下班休息喽！记得吃午餐哟！🍱"),
@@ -521,6 +563,7 @@ class XiaoTang:
         self._fired_schedules = set()
         self._schedule_end_timers = {}  # {item_id: timer_id} 跟踪日程结束时间
         self._pending_done_question = None  # 待回答的"做完了？"问题标题
+        self._pending_done_item_id = None   # 对应的日程 ID
         self.ACTIVE_TIMEOUT  = 1
         self.SLEEP_TIMEOUT   = 300
         self.dm              = DataManager()
@@ -601,6 +644,10 @@ class XiaoTang:
             if self._win._left_click_pending:
                 self._win._left_click_pending = False
                 self._show_cat_menu()
+            if self._win._right_click_pending:
+                self._win._right_click_pending = False
+                self._show_cat_menu()
+                self._show_cat_menu()
         except Exception as e:
             log(f"_poll_clicks: {e}")
         self.root.after(100, self._poll_clicks)
@@ -648,7 +695,10 @@ class XiaoTang:
                     ds = now.strftime("%m月%d日")
                     wds = ["星期一","星期二","星期三","星期四","星期五","星期六","星期日"]
                     wd = wds[now.weekday()]
-                    if now.weekday() == 4:
+                    holiday = _get_holiday()
+                    if holiday:
+                        msg = f"喵~ 主人你好呀！今天是{ds}{wd}，{holiday}快乐！🎊"
+                    elif now.weekday() == 4:
                         msg = f"喵~ 主人你好呀！今天是{ds}{wd}，终于周五啦！马上就可以休息了！🎉"
                     elif now.weekday() == 5:
                         msg = f"喵~ 主人你好呀！今天是{ds}{wd}，主人加班辛苦了，下班就可以美美休息了呢~ 💪"
@@ -781,15 +831,44 @@ class XiaoTang:
             log(f"菜单弹出失败: {e}")
             self._enqueue("喵~ 主人你好呀！")
 
+    def _show_done_options(self):
+        """日程结束时自动弹出完成选项"""
+        if not self._pending_done_question:
+            return
+        self._show_cat_menu()
+
     def _done_yes(self):
         title = self._pending_done_question
+        item_id = self._pending_done_item_id
         self._pending_done_question = None
+        self._pending_done_item_id = None
+        # 标记完成
+        for s in self.dm.data["schedules"]:
+            if s["id"] == item_id:
+                s["completed"] = True
+                self.dm.save()
+                break
         self._enqueue(f"主人真棒！「{title}」完成啦！🎉 继续加油！")
 
     def _done_no(self):
         title = self._pending_done_question
+        item_id = self._pending_done_item_id
         self._pending_done_question = None
-        self._enqueue(f"好的，那「{title}」再给1小时，1小时后我再提醒你~ ⏰")
+        self._pending_done_item_id = None
+        # 延时1小时：更新时长和结束提醒
+        for s in self.dm.data["schedules"]:
+            if s["id"] == item_id:
+                s["duration"] = s.get("duration", 30) + 60
+                self.dm.save()
+                # 注册新的结束提醒
+                new_end = self._calc_end_time(s["start_time"], s["duration"])
+                self._schedule_end_timers[item_id] = {
+                    "title": s["title"],
+                    "end_time": new_end,
+                    "fired": False,
+                }
+                break
+        self._enqueue(f"好的，「{title}」延时1小时，{new_end}我再提醒你~ ⏰")
 
 
     def _do_quit(self):
@@ -1015,6 +1094,9 @@ except Exception as e:
                             events_to_fire.append(msg)
                             # 记录待回答的问题
                             self._pending_done_question = title
+                            self._pending_done_item_id = item_id
+                            # 延迟弹出选项（等气泡显示后）
+                            self.root.after(3000, self._show_done_options)
 
                     # 统一播报：相同时间的事件排队，间隔 2 分钟
                     if events_to_fire:
@@ -1071,8 +1153,12 @@ except Exception as e:
                 weather = "🌤 天气未知"
             wd_idx = now.weekday()
             sentences = [f"{greeting}！今天是{ds}{wd}。"]
+            # 节日问候
+            holiday = _get_holiday()
+            if holiday:
+                sentences.append(f"今天是{holiday}，祝主人节日快乐！🎊")
             # 周五/周六特殊文案
-            if wd_idx == 4:  # 周五
+            elif wd_idx == 4:  # 周五
                 sentences.append("终于周五啦！马上就可以休息了！🎉")
             elif wd_idx == 5:  # 周六
                 sentences.append("主人今天加班辛苦了，下班就可以美美休息了呢~ 💪")
@@ -1114,8 +1200,23 @@ except Exception as e:
         except Exception as e:
             log(f"自启注册失败: {e}")
 
+    _schedule_win = None  # 日程窗口单例
+
     def _open_schedule(self):
-        self.root.after(0, lambda: ScheduleWindow(self.root, self.dm))
+        # 如果已有窗口打开，直接置顶
+        if self._schedule_win:
+            try:
+                self._schedule_win.lift()
+                self._schedule_win.focus_force()
+            except:
+                pass
+            return
+        def _create():
+            win = ScheduleWindow(self.root, self.dm)
+            self._schedule_win = win
+            # 窗口关闭时清空引用
+            win.bind("<Destroy>", lambda e: setattr(self, '_schedule_win', None))
+        self.root.after(0, _create)
 
 # ══════ 日程窗口 ══════
 class ScheduleWindow(tk.Toplevel):
@@ -1137,26 +1238,28 @@ class ScheduleWindow(tk.Toplevel):
         self._fd  = filedialog
 
         # 顶栏
-        bar = tk.Frame(self, bg="#FF9A6C", height=52)
+        bar = tk.Frame(self, bg="#87CEEB", height=52)
         bar.pack(fill="x")
         bar.pack_propagate(False)
-        tk.Label(bar, text="🐱 小唐的日程本", bg="#FF9A6C", fg="white",
+        tk.Label(bar, text="🐱 小唐的日程本", bg="#87CEEB", fg="black",
                  font=("PingFang SC", 15, "bold")).pack(side="left", padx=16, pady=14)
         today = datetime.date.today()
         wds   = ["星期一","星期二","星期三","星期四","星期五","星期六","星期日"]
         tk.Label(bar, text=f"{today}  {wds[today.weekday()]}",
-                 bg="#FF9A6C", fg="#FFE8D6",
+                 bg="#87CEEB", fg="#333",
                  font=("PingFang SC", 12)).pack(side="right", padx=16)
 
         # Tab
-        tab_f = tk.Frame(self, bg="#FFE0CC")
+        tab_f = tk.Frame(self, bg="#B0E0E6")
         tab_f.pack(fill="x")
         self._tab_btns = {}
         for label, val in [("📌 今日日程", "schedule"), ("📒 历史导出", "history")]:
             btn = tk.Button(tab_f, text=label,
                             command=lambda v=val: self._switch_tab(v),
                             font=("PingFang SC", 12, "bold"),
-                            relief="flat", cursor="arrow", padx=18, pady=6)
+                            relief="flat", cursor="arrow", padx=18, pady=6,
+                            bg="#87CEEB", fg="black",
+                            activebackground="#6CB4D4", activeforeground="black")
             btn.pack(side="left")
             self._tab_btns[val] = btn
 
@@ -1168,8 +1271,8 @@ class ScheduleWindow(tk.Toplevel):
 
     def _switch_tab(self, val):
         for v, btn in self._tab_btns.items():
-            btn.config(bg="#FF9A6C" if v == val else "#FFE0CC",
-                       fg="white" if v == val else "#666")
+            btn.config(bg="#87CEEB" if v == val else "#B0E0E6",
+                       fg="black" if v == val else "#555")
         if val == "schedule":
             self._f_hist.pack_forget()
             self._f_sched.pack(fill="both", expand=True)
@@ -1190,20 +1293,28 @@ class ScheduleWindow(tk.Toplevel):
         tk.Label(r1, text="事件名称：", bg="#FDF6EE",
                  font=("PingFang SC", 12)).pack(side="left")
         self.v_title = tk.StringVar()
-        tk.Entry(r1, textvariable=self.v_title, width=20,
-                 font=("PingFang SC", 12), bg="white", fg="#222",
-                 insertbackground="#222").pack(side="left", padx=(0, 6))
+        # 下拉选择框（可输入也可选择）
+        title_values = [t["title"] for t in self.dm.data.get("templates", [])]
+        self._title_combo = ttk.Combobox(r1, textvariable=self.v_title, width=18,
+                                          font=("PingFang SC", 12), values=title_values)
+        self._title_combo.pack(side="left", padx=(0, 6))
         for txt, cmd in [("📋 历史", self._pick_history),
                          ("⭐ 模板", self._pick_template)]:
             tk.Button(r1, text=txt, command=cmd,
-                      bg="#FF9A6C", fg="white",
+                      bg="#87CEEB", fg="black",
                       font=("PingFang SC", 11), relief="flat",
                       cursor="arrow", padx=5).pack(side="left", padx=2)
 
         r2 = tk.Frame(af, bg="#FDF6EE"); r2.pack(fill="x", pady=3)
         tk.Label(r2, text="开始时间：", bg="#FDF6EE",
                  font=("PingFang SC", 12)).pack(side="left")
-        self.v_time = tk.StringVar(value=datetime.datetime.now().strftime("%H:%M"))
+        # 默认时间：当前时间的下一个整点或半点
+        now = datetime.datetime.now()
+        if now.minute <= 30:
+            default_time = now.strftime("%H") + ":30"
+        else:
+            default_time = (now + datetime.timedelta(hours=1)).strftime("%H") + ":00"
+        self.v_time = tk.StringVar(value=default_time)
         tk.Entry(r2, textvariable=self.v_time, width=7,
                  font=("PingFang SC", 12), bg="white", fg="#222").pack(side="left", padx=(0, 16))
         tk.Label(r2, text="持续(分钟)：", bg="#FDF6EE",
@@ -1213,7 +1324,7 @@ class ScheduleWindow(tk.Toplevel):
                  font=("PingFang SC", 12), bg="white", fg="#222").pack(side="left")
 
         tk.Button(af, text="  ✅ 添加  ", command=self._add,
-                  bg="#FF9A6C", fg="white",
+                  bg="#87CEEB", fg="black",
                   font=("PingFang SC", 13, "bold"),
                   relief="flat", cursor="arrow").pack(pady=(8, 2))
 
@@ -1268,11 +1379,11 @@ class ScheduleWindow(tk.Toplevel):
 
         brow = tk.Frame(p, bg="#FDF6EE"); brow.pack(pady=(0, 10))
         tk.Button(brow, text="🗑 删除选中", command=self._delete,
-                  bg="#FFB3A7", fg="#222",
+                  bg="#87CEEB", fg="black",
                   font=("PingFang SC", 11), relief="flat",
                   cursor="arrow").pack(side="left", padx=8)
         tk.Button(brow, text="💾 保存并关闭", command=self._save_close,
-                  bg="#4CAF50", fg="white",
+                  bg="#87CEEB", fg="black",
                   font=("PingFang SC", 11, "bold"),
                   relief="flat", cursor="arrow").pack(side="left", padx=8)
 
@@ -1293,7 +1404,7 @@ class ScheduleWindow(tk.Toplevel):
                      font=("PingFang SC", 12), bg="white",
                      fg="#222").pack(side="left", padx=(0, 12))
         tk.Button(row, text="🔍 查询", command=self._h_query,
-                  bg="#FF9A6C", fg="white",
+                  bg="#87CEEB", fg="black",
                   font=("PingFang SC", 12), relief="flat",
                   cursor="arrow").pack(side="left")
 
@@ -1301,7 +1412,7 @@ class ScheduleWindow(tk.Toplevel):
         for lbl, d in [("今天", 0), ("近7天", 6), ("近30天", 29), ("本月", -1)]:
             tk.Button(qrow, text=lbl,
                       command=lambda x=d: self._h_quick(x),
-                      bg="#FFE0CC", fg="#333",
+                      bg="#87CEEB", fg="black",
                       font=("PingFang SC", 11), relief="flat",
                       cursor="arrow", padx=8).pack(side="left", padx=4)
 
@@ -1319,8 +1430,8 @@ class ScheduleWindow(tk.Toplevel):
 
         br = tk.Frame(p, bg="#FDF6EE"); br.pack(pady=(4, 12))
         for txt, fmt, bg, fg in [
-            ("💾 导出 TXT",  "txt",  "#FF9A6C", "white"),
-            ("📊 导出 JSON", "json", "#FFD580", "#333"),
+            ("💾 导出 TXT",  "txt",  "#87CEEB", "black"),
+            ("📊 导出 JSON", "json", "#B0E0E6", "black"),
         ]:
             tk.Button(br, text=txt,
                       command=lambda f=fmt: self._h_export(f),
@@ -1344,6 +1455,8 @@ class ScheduleWindow(tk.Toplevel):
         h, m = start.split(":")
         self.dm.add_schedule(title, f"{int(h):02d}:{int(m):02d}", di)
         self.v_title.set("")
+        # 更新下拉列表
+        self._title_combo["values"] = [t["title"] for t in self.dm.data.get("templates", [])]
         self._refresh()
 
     def _save_close(self):
@@ -1458,7 +1571,7 @@ class ScheduleWindow(tk.Toplevel):
             self._switch_tab("schedule")
 
         tk.Button(pop, text="✅ 引用此项", command=pick,
-                  bg="#FF9A6C", fg="white",
+                  bg="#87CEEB", fg="black",
                   font=("PingFang SC", 12, "bold"),
                   relief="flat", cursor="arrow").pack(pady=8)
 

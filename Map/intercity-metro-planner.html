@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>城际通 · 最优换乘</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1f2d45;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --accent3: #7cfc00;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --intercity: #f59e0b;
+    --metro: #3b82f6;
+    --walk: #10b981;
+    --glow: 0 0 20px rgba(0,212,255,0.3);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Serif SC', serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* 背景网格 */
+  body::before {
+    content:'';
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events:none; z-index:0;
+  }
+
+  .app { position:relative; z-index:1; max-width:520px; margin:0 auto; padding:16px; }
+
+  /* Header */
+  .header {
+    text-align:center; padding:24px 0 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+  .logo {
+    font-size:28px; font-weight:700; letter-spacing:4px;
+    background: linear-gradient(135deg, var(--accent), var(--intercity));
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    background-clip:text;
+  }
+  .logo-sub {
+    font-size:11px; color:var(--muted); letter-spacing:6px;
+    font-family:'JetBrains Mono'; margin-top:4px;
+  }
+
+  /* Nav */
+  .nav {
+    display:flex; gap:4px;
+    background: var(--surface);
+    border-radius:12px; padding:4px;
+    margin-bottom:20px;
+    border:1px solid var(--border);
+  }
+  .nav-btn {
+    flex:1; padding:8px; border:none; border-radius:8px;
+    background:transparent; color:var(--muted);
+    font-family:'Noto Serif SC'; font-size:13px; cursor:pointer;
+    transition:all .2s;
+  }
+  .nav-btn.active {
+    background: var(--surface2);
+    color: var(--accent);
+    box-shadow: var(--glow);
+  }
+
+  /* 搜索区 */
+  .search-card {
+    background: var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px; padding:20px;
+    margin-bottom:16px;
+    position:relative; overflow:hidden;
+  }
+  .search-card::before {
+    content:'';
+    position:absolute; top:-1px; left:20px; right:20px; height:2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+
+  .field-label {
+    font-size:11px; color:var(--muted); letter-spacing:2px;
+    font-family:'JetBrains Mono'; margin-bottom:6px;
+  }
+  .field-input {
+    width:100%; background: var(--surface2);
+    border:1px solid var(--border); border-radius:8px;
+    padding:12px 14px; color:var(--text);
+    font-family:'Noto Serif SC'; font-size:15px;
+    outline:none; transition:border .2s;
+  }
+  .field-input:focus { border-color: var(--accent); box-shadow: var(--glow); }
+  .field-input::placeholder { color: var(--muted); }
+
+  .swap-btn {
+    width:36px; height:36px; border-radius:50%;
+    background: var(--surface2); border:1px solid var(--border);
+    color: var(--accent); cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    margin:10px auto; font-size:18px;
+    transition:all .2s;
+  }
+  .swap-btn:hover { background: var(--accent); color: var(--bg); transform:rotate(180deg); }
+
+  /* 偏好设置 */
+  .prefs {
+    display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;
+  }
+  .pref-chip {
+    padding:5px 12px; border-radius:20px; font-size:12px;
+    border:1px solid var(--border); background:transparent;
+    color:var(--muted); cursor:pointer; transition:all .2s;
+    font-family:'JetBrains Mono';
+  }
+  .pref-chip.active {
+    border-color: var(--intercity);
+    color: var(--intercity);
+    background: rgba(245,158,11,0.1);
+  }
+
+  .search-submit {
+    width:100%; margin-top:16px;
+    padding:14px; border-radius:10px; border:none;
+    background: linear-gradient(135deg, #0077aa, var(--accent));
+    color:#fff; font-family:'Noto Serif SC'; font-size:16px;
+    font-weight:600; cursor:pointer; letter-spacing:2px;
+    transition:all .2s; box-shadow: 0 4px 15px rgba(0,212,255,0.2);
+  }
+  .search-submit:hover { transform:translateY(-1px); box-shadow: 0 6px 20px rgba(0,212,255,0.35); }
+
+  /* 结果卡片 */
+  .results-header {
+    font-size:12px; color:var(--muted); font-family:'JetBrains Mono';
+    letter-spacing:2px; margin-bottom:12px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .badge-new {
+    font-size:10px; padding:2px 8px; border-radius:10px;
+    background: rgba(124,252,0,0.15); border:1px solid var(--accent3);
+    color: var(--accent3);
+  }
+
+  .route-card {
+    background: var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px; padding:16px;
+    margin-bottom:12px; cursor:pointer;
+    transition:all .25s; position:relative; overflow:hidden;
+  }
+  .route-card:hover { border-color: var(--accent); transform:translateY(-2px); }
+  .route-card.recommended { border-color: var(--intercity); }
+  .route-card.recommended::after {
+    content:'城际优选';
+    position:absolute; top:0; right:0;
+    background: var(--intercity); color:#000;
+    font-size:10px; font-family:'JetBrains Mono';
+    padding:3px 10px; border-radius:0 14px 0 10px;
+    font-weight:700; letter-spacing:1px;
+  }
+  .route-card.user-rec { border-color: var(--accent3); }
+  .route-card.user-rec::after {
+    content:'用户推荐';
+    position:absolute; top:0; right:0;
+    background: var(--accent3); color:#000;
+    font-size:10px; font-family:'JetBrains Mono';
+    padding:3px 10px; border-radius:0 14px 0 10px;
+    font-weight:700; letter-spacing:1px;
+  }
+
+  .route-meta {
+    display:flex; justify-content:space-between; align-items:flex-start;
+    margin-bottom:12px;
+  }
+  .route-time { font-size:28px; font-weight:700; color:var(--text); }
+  .route-time span { font-size:14px; color:var(--muted); font-weight:400; }
+  .route-cost {
+    text-align:right;
+  }
+  .cost-num { font-size:18px; color:var(--accent); font-family:'JetBrains Mono'; }
+  .cost-label { font-size:11px; color:var(--muted); }
+
+  /* 路线图谱 */
+  .route-viz {
+    display:flex; align-items:center; gap:0;
+    margin:12px 0; position:relative;
+  }
+  .seg {
+    display:flex; align-items:center; flex:1;
+  }
+  .seg-dot {
+    width:10px; height:10px; border-radius:50%; flex-shrink:0;
+    border:2px solid;
+  }
+  .seg-line {
+    flex:1; height:3px; position:relative;
+  }
+  .seg-info {
+    position:absolute; top:-18px; left:50%; transform:translateX(-50%);
+    font-size:10px; white-space:nowrap; font-family:'JetBrains Mono';
+    padding:2px 6px; border-radius:4px;
+  }
+  .seg-label {
+    position:absolute; bottom:-16px; left:50%; transform:translateX(-50%);
+    font-size:9px; white-space:nowrap; color:var(--muted);
+  }
+
+  .type-walk { color:var(--walk); border-color:var(--walk); background:rgba(16,185,129,0.1); }
+  .type-intercity { color:var(--intercity); border-color:var(--intercity); background:rgba(245,158,11,0.15); }
+  .type-metro { color:var(--metro); border-color:var(--metro); background:rgba(59,130,246,0.15); }
+  .type-train { color:#a78bfa; border-color:#a78bfa; background:rgba(167,139,250,0.1); }
+
+  .seg-dot.walk { background:var(--walk); border-color:var(--walk); }
+  .seg-dot.intercity { background:var(--intercity); border-color:var(--intercity); }
+  .seg-dot.metro { background:var(--metro); border-color:var(--metro); }
+  .seg-dot.train { background:#a78bfa; border-color:#a78bfa; }
+
+  .seg-line.walk { background: repeating-linear-gradient(90deg,var(--walk) 0,var(--walk) 4px,transparent 4px,transparent 8px); }
+  .seg-line.intercity { background:var(--intercity); }
+  .seg-line.metro { background:var(--metro); }
+  .seg-line.train { background:#a78bfa; }
+
+  /* 对比省时 */
+  .save-bar {
+    background: rgba(124,252,0,0.08);
+    border:1px solid rgba(124,252,0,0.2);
+    border-radius:8px; padding:8px 12px;
+    display:flex; align-items:center; gap:8px;
+    margin-top:10px;
+  }
+  .save-icon { font-size:16px; }
+  .save-text { font-size:12px; color:var(--accent3); font-family:'JetBrains Mono'; }
+
+  /* 详情展开 */
+  .route-steps { display:none; margin-top:14px; }
+  .route-card.expanded .route-steps { display:block; }
+  .step {
+    display:flex; gap:10px; padding:8px 0;
+    border-bottom:1px solid var(--border);
+    font-size:13px;
+  }
+  .step:last-child { border:none; }
+  .step-icon {
+    width:28px; height:28px; border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; flex-shrink:0;
+  }
+  .step-body { flex:1; }
+  .step-title { color:var(--text); margin-bottom:2px; }
+  .step-detail { color:var(--muted); font-size:11px; font-family:'JetBrains Mono'; }
+
+  /* 操作按钮 */
+  .route-actions {
+    display:flex; gap:8px; margin-top:12px;
+  }
+  .action-btn {
+    flex:1; padding:8px; border-radius:8px; border:none;
+    font-family:'Noto Serif SC'; font-size:12px; cursor:pointer;
+    transition:all .2s;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #0066cc, var(--accent));
+    color:#fff;
+  }
+  .btn-vote {
+    background: var(--surface2); color:var(--text);
+    border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center; gap:4px;
+  }
+  .btn-vote:hover { border-color:var(--accent3); color:var(--accent3); }
+  .btn-share { background: var(--surface2); color:var(--muted); border:1px solid var(--border); }
+
+  /* 用户推荐提交 */
+  .contribute-card {
+    background: var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px; padding:20px;
+    position:relative; overflow:hidden;
+  }
+  .contribute-card::before {
+    content:'';
+    position:absolute; top:-1px; left:20px; right:20px; height:2px;
+    background: linear-gradient(90deg, transparent, var(--accent3), transparent);
+  }
+  .contrib-title {
+    font-size:16px; color:var(--accent3); margin-bottom:4px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .contrib-desc { font-size:12px; color:var(--muted); margin-bottom:16px; }
+
+  .step-builder { margin-bottom:14px; }
+  .step-row {
+    display:flex; gap:8px; align-items:center; margin-bottom:8px;
+  }
+  .step-select {
+    flex:0 0 90px;
+    background:var(--surface2); border:1px solid var(--border);
+    color:var(--text); border-radius:6px; padding:8px;
+    font-family:'Noto Serif SC'; font-size:13px; outline:none;
+  }
+  .step-text-input {
+    flex:1;
+    background:var(--surface2); border:1px solid var(--border);
+    color:var(--text); border-radius:6px; padding:8px 10px;
+    font-family:'Noto Serif SC'; font-size:13px; outline:none;
+  }
+  .step-text-input:focus, .step-select:focus { border-color:var(--accent3); }
+  .del-btn {
+    width:28px; height:28px; border-radius:6px;
+    background:transparent; border:1px solid var(--border);
+    color:var(--muted); cursor:pointer; font-size:16px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .add-step-btn {
+    width:100%; padding:8px; border-radius:8px;
+    background:rgba(124,252,0,0.08); border:1px dashed rgba(124,252,0,0.3);
+    color:var(--accent3); font-family:'Noto Serif SC'; font-size:13px;
+    cursor:pointer; transition:all .2s;
+  }
+  .add-step-btn:hover { background:rgba(124,252,0,0.15); }
+
+  .contrib-submit {
+    width:100%; margin-top:12px; padding:12px;
+    border-radius:10px; border:none;
+    background: linear-gradient(135deg, #166534, var(--accent3));
+    color:#000; font-family:'Noto Serif SC'; font-size:15px;
+    font-weight:700; cursor:pointer; letter-spacing:2px;
+  }
+
+  /* 社区路线列表 */
+  .community-card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:14px; padding:14px; margin-bottom:10px;
+  }
+  .community-meta {
+    display:flex; justify-content:space-between; margin-bottom:8px;
+  }
+  .route-title { font-size:14px; color:var(--text); }
+  .vote-count {
+    font-family:'JetBrains Mono'; font-size:13px; color:var(--accent3);
+    display:flex; align-items:center; gap:4px;
+  }
+  .community-tags { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+  .tag {
+    font-size:10px; padding:2px 8px; border-radius:10px;
+    font-family:'JetBrains Mono';
+  }
+  .author-row {
+    font-size:11px; color:var(--muted); font-family:'JetBrains Mono';
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .vote-btn {
+    padding:4px 12px; border-radius:6px; border:1px solid var(--accent3);
+    background:rgba(124,252,0,0.08); color:var(--accent3);
+    font-size:11px; cursor:pointer; transition:all .2s; font-family:'JetBrains Mono';
+  }
+  .vote-btn:hover { background:rgba(124,252,0,0.2); }
+  .vote-btn.voted { background:var(--accent3); color:#000; }
+
+  /* 图例 */
+  .legend {
+    display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px;
+    padding:10px 14px; background:var(--surface); border-radius:10px;
+    border:1px solid var(--border);
+  }
+  .legend-item { display:flex; align-items:center; gap:5px; font-size:11px; font-family:'JetBrains Mono'; }
+  .legend-dot { width:8px; height:8px; border-radius:50%; }
+
+  /* Tab pages */
+  .page { display:none; }
+  .page.active { display:block; }
+
+  /* 提示框 */
+  .toast {
+    position:fixed; bottom:30px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--surface2); border:1px solid var(--accent3);
+    color:var(--accent3); padding:10px 20px; border-radius:10px;
+    font-size:13px; font-family:'JetBrains Mono';
+    opacity:0; transition:all .3s; z-index:100; white-space:nowrap;
+    box-shadow: 0 4px 20px rgba(124,252,0,0.2);
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* 扫描动画 */
+  @keyframes scan {
+    0%,100%{opacity:0.3} 50%{opacity:1}
+  }
+  .scanning { animation: scan 1.2s ease-in-out infinite; }
+
+  /* Loading */
+  .loading-bar {
+    height:2px; background:var(--border); border-radius:2px;
+    overflow:hidden; margin-bottom:16px; display:none;
+  }
+  .loading-bar.active { display:block; }
+  .loading-fill {
+    height:100%; width:0;
+    background: linear-gradient(90deg, var(--accent), var(--intercity));
+    border-radius:2px;
+    transition: width 0.4s ease;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">城 际 通</div>
+    <div class="logo-sub">INTERCITY · METRO · OPTIMIZER</div>
+  </div>
+
+  <!-- Nav -->
+  <div class="nav">
+    <button class="nav-btn active" onclick="switchTab('search')">🔍 路线查询</button>
+    <button class="nav-btn" onclick="switchTab('contribute')">✍️ 我要推荐</button>
+    <button class="nav-btn" onclick="switchTab('community')">🌐 社区库</button>
+  </div>
+
+  <!-- ===== 查询页 ===== -->
+  <div id="page-search" class="page active">
+
+    <div class="search-card">
+      <div class="field-label">出发地</div>
+      <input class="field-input" id="origin" placeholder="输入起点，如：宝安区新安街道" value="深圳宝安">
+      <div class="swap-btn" onclick="swapPoints()">⇅</div>
+      <div class="field-label">目的地</div>
+      <input class="field-input" id="dest" placeholder="输入终点，如：惠州南站" value="惠州南">
+
+      <div class="prefs">
+        <button class="pref-chip active" id="pref-intercity" onclick="togglePref('intercity')">🚄 优先城际</button>
+        <button class="pref-chip" id="pref-time" onclick="togglePref('time')">⚡ 最快到达</button>
+        <button class="pref-chip" id="pref-cost" onclick="togglePref('cost')">💰 最省花费</button>
+        <button class="pref-chip" id="pref-walk" onclick="togglePref('walk')">🚶 少走路</button>
+      </div>
+
+      <button class="search-submit" onclick="doSearch()">开始搜索最优路线</button>
+    </div>
+
+    <div class="loading-bar" id="loading">
+      <div class="loading-fill" id="loading-fill"></div>
+    </div>
+
+    <!-- 图例 -->
+    <div class="legend" id="legend" style="display:none">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--walk)"></div>步行</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--intercity)"></div>城际铁路</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--metro)"></div>地铁</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div>高铁/普铁</div>
+    </div>
+
+    <div id="results"></div>
+  </div>
+
+  <!-- ===== 推荐页 ===== -->
+  <div id="page-contribute" class="page">
+    <div class="contribute-card">
+      <div class="contrib-title">✍️ 推荐一条路线</div>
+      <div class="contrib-desc">你走过的城际路线，是比算法更真实的答案。每一条推荐都会进入社区库，帮助更多人。</div>
+
+      <div class="field-label">路线名称</div>
+      <input class="field-input" id="c-name" placeholder="如：宝安→惠州·深惠城际接地铁" style="margin-bottom:14px">
+
+      <div class="field-label">路线步骤</div>
+      <div class="step-builder" id="step-builder">
+        <div class="step-row" id="sr-0">
+          <select class="step-select">
+            <option value="walk">🚶 步行</option>
+            <option value="intercity" selected>🚄 城际</option>
+            <option value="metro">🚇 地铁</option>
+            <option value="train">🚂 高铁</option>
+            <option value="bus">🚌 公交</option>
+          </select>
+          <input class="step-text-input" placeholder="描述此段，如：宝安站→机场北">
+          <button class="del-btn" onclick="delStep(0)">×</button>
+        </div>
+        <div class="step-row" id="sr-1">
+          <select class="step-select">
+            <option value="metro" selected>🚇 地铁</option>
+            <option value="walk">🚶 步行</option>
+            <option value="intercity">🚄 城际</option>
+            <option value="train">🚂 高铁</option>
+            <option value="bus">🚌 公交</option>
+          </select>
+          <input class="step-text-input" placeholder="描述此段，如：11号线→世界之窗">
+          <button class="del-btn" onclick="delStep(1)">×</button>
+        </div>
+      </div>
+      <button class="add-step-btn" onclick="addStep()">+ 添加路段</button>
+
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <div style="flex:1">
+          <div class="field-label">预计总时长(分钟)</div>
+          <input class="field-input" id="c-time" type="number" placeholder="90">
+        </div>
+        <div style="flex:1">
+          <div class="field-label">大致费用(元)</div>
+          <input class="field-input" id="c-cost" type="number" placeholder="35">
+        </div>
+      </div>
+
+      <div class="field-label" style="margin-top:14px">补充说明（可选）</div>
+      <input class="field-input" id="c-note" placeholder="如：工作日早高峰建议提前30分钟">
+
+      <button class="contrib-submit" onclick="submitRoute()">提交这条路线 →</button>
+    </div>
+  </div>
+
+  <!-- ===== 社区库 ===== -->
+  <div id="page-community" class="page">
+    <div class="results-header">
+      <span>COMMUNITY ROUTES</span>
+      <span>共 <span id="community-count">4</span> 条路线</span>
+    </div>
+    <div id="community-list"></div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== 数据 =====
+const MOCK_ROUTES = [
+  {
+    id:1, type:'recommended',
+    label:'城际优选', saveMin:42,
+    time:65, cost:28,
+    segs:[
+      {type:'walk', label:'步行8min', name:'前往宝安城际站'},
+      {type:'intercity', label:'深惠城际·38min', name:'宝安→机场北→'},
+      {type:'metro', label:'地铁·19min', name:'11号线→惠城南'},
+    ],
+    steps:[
+      {icon:'🚶', type:'walk', title:'步行前往宝安城际站', detail:'约 800m · 预计 8分钟'},
+      {icon:'🚄', type:'intercity', title:'乘坐深惠城际 宝安→机场北', detail:'G820次 · 38分钟 · ¥18'},
+      {icon:'🚇', type:'metro', title:'换乘11号线 机场北→惠城南', detail:'地铁11号线 · 19分钟 · ¥6'},
+      {icon:'🚶', type:'walk', title:'步行至目的地', detail:'约 300m · 预计 4分钟'},
+    ]
+  },
+  {
+    id:2, type:'user-rec',
+    label:'用户推荐', userVotes:47,
+    time:72, cost:22,
+    segs:[
+      {type:'walk', label:'步行5min', name:''},
+      {type:'intercity', label:'穗莞深城际·45min', name:'前海→虎门'},
+      {type:'train', label:'高铁·12min', name:'虎门→广州南'},
+      {type:'metro', label:'地铁·10min', name:'广州南→番禺广场'},
+    ],
+    steps:[
+      {icon:'🚶', type:'walk', title:'步行前往前海城际站', detail:'约 500m · 5分钟'},
+      {icon:'🚄', type:'intercity', title:'穗莞深城际 前海→虎门', detail:'城际 · 45分钟 · ¥10'},
+      {icon:'🚂', type:'train', title:'高铁 虎门→广州南', detail:'G系列 · 12分钟 · ¥9'},
+      {icon:'🚇', type:'metro', title:'广州地铁7号线 广州南→番禺广场', detail:'10分钟 · ¥3'},
+    ]
+  },
+  {
+    id:3, type:'normal',
+    time:107, cost:18,
+    segs:[
+      {type:'metro', label:'地铁·35min', name:''},
+      {type:'train', label:'高铁·28min', name:''},
+      {type:'metro', label:'地铁·44min', name:''},
+    ],
+    steps:[
+      {icon:'🚇', type:'metro', title:'地铁到深圳北', detail:'35分钟'},
+      {icon:'🚂', type:'train', title:'高铁 深圳北→目的地高铁站', detail:'28分钟 · ¥15'},
+      {icon:'🚇', type:'metro', title:'地铁到目的地', detail:'44分钟（常规导航方案）'},
+    ]
+  }
+];
+
+const COMMUNITY = [
+  {
+    id:1, name:'深圳宝安→惠州市中心·全城际方案',
+    tags:['城际','地铁','工作日可用'],
+    tagColors:['var(--intercity)','var(--metro)','var(--muted)'],
+    time:68, cost:26, votes:127, voted:false,
+    author:'旅行达人_莞深通',
+    summary:'宝安城际站→深惠城际→惠城南地铁换乘，全程无需走高铁'
+  },
+  {
+    id:2, name:'前海→广州番禺·城际+高铁混搭',
+    tags:['城际','高铁','性价比'],
+    tagColors:['var(--intercity)','#a78bfa','var(--accent3)'],
+    time:72, cost:22, votes:89, voted:false,
+    author:'跨城通勤王',
+    summary:'穗莞深城际到虎门，再接高铁到广州南，比直接坐高铁便宜且时间差不多'
+  },
+  {
+    id:3, name:'光明→东莞松山湖·莞惠城际',
+    tags:['城际','冷门路线'],
+    tagColors:['var(--intercity)','var(--accent3)'],
+    time:55, cost:15, votes:43, voted:false,
+    author:'松山湖通勤族',
+    summary:'从光明城际站出发，沿赣深+莞惠城际，比地铁接高铁省40分钟'
+  },
+  {
+    id:4, name:'深圳机场→广州南沙·机场北城际直达',
+    tags:['城际','机场接驳','推荐'],
+    tagColors:['var(--intercity)','var(--metro)','var(--accent)'],
+    time:50, cost:32, votes:201, voted:false,
+    author:'南沙商务旅',
+    summary:'乘机场快线到机场北，接深大城际到中山北，再换南沙地铁，比打车快1.5小时'
+  }
+];
+
+let stepCount = 2;
+let searchDone = false;
+let communityData = [...COMMUNITY];
+
+// ===== Tab切换 =====
+function switchTab(tab) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+tab).classList.add('active');
+  event.target.classList.add('active');
+  if(tab==='community') renderCommunity();
+}
+
+// ===== 偏好 =====
+function togglePref(p) {
+  document.getElementById('pref-'+p).classList.toggle('active');
+}
+
+// ===== 交换 =====
+function swapPoints() {
+  const o = document.getElementById('origin');
+  const d = document.getElementById('dest');
+  [o.value, d.value] = [d.value, o.value];
+}
+
+// ===== 搜索 =====
+function doSearch() {
+  const lb = document.getElementById('loading');
+  const lf = document.getElementById('loading-fill');
+  lb.classList.add('active');
+  lf.style.width='0';
+  document.getElementById('results').innerHTML='<div style="text-align:center;color:var(--muted);padding:20px;font-family:JetBrains Mono;font-size:12px" class="scanning">正在穿越城际数据网络...</div>';
+  document.getElementById('legend').style.display='none';
+
+  let w=0;
+  const iv = setInterval(()=>{ w=Math.min(w+Math.random()*15+5, 90); lf.style.width=w+'%'; },200);
+
+  setTimeout(()=>{
+    clearInterval(iv); lf.style.width='100%';
+    setTimeout(()=>{
+      lb.classList.remove('active');
+      document.getElementById('legend').style.display='flex';
+      renderResults();
+      searchDone=true;
+    },300);
+  }, 1600);
+}
+
+function renderResults() {
+  const container = document.getElementById('results');
+  container.innerHTML = `<div class="results-header"><span>找到 ${MOCK_ROUTES.length} 条路线</span><span class="badge-new">含 2 条城际方案</span></div>`;
+  MOCK_ROUTES.forEach((r,i)=>{
+    container.innerHTML += buildRouteCard(r, i===0);
+  });
+}
+
+function buildRouteCard(r, expanded) {
+  const cls = r.type==='recommended' ? 'route-card recommended' : r.type==='user-rec' ? 'route-card user-rec' : 'route-card';
+  const saveHtml = r.saveMin ? `<div class="save-bar"><span class="save-icon">⚡</span><span class="save-text">比普通方案节省约 ${r.saveMin} 分钟</span></div>` : '';
+  const votesHtml = r.userVotes ? `<div style="font-size:11px;color:var(--accent3);font-family:JetBrains Mono;margin-top:4px">▲ ${r.userVotes} 人推荐</div>` : '';
+
+  const segs = r.segs.map((s,i)=>{
+    const isLast = i===r.segs.length-1;
+    return `<div class="seg">
+      <div class="seg-dot ${s.type}"></div>
+      <div class="seg-line ${s.type}" style="position:relative;flex:1">
+        <div class="seg-info type-${s.type}">${s.label}</div>
+      </div>
+      ${isLast?`<div class="seg-dot ${s.type}"></div>`:''}
+    </div>`;
+  }).join('');
+
+  const steps = r.steps.map(s=>`
+    <div class="step">
+      <div class="step-icon" style="background:var(--surface2)">${s.icon}</div>
+      <div class="step-body">
+        <div class="step-title">${s.title}</div>
+        <div class="step-detail">${s.detail}</div>
+      </div>
+    </div>
+  `).join('');
+
+  return `<div class="${cls}${expanded?' expanded':''}" onclick="toggleCard(this)">
+    <div class="route-meta">
+      <div><div class="route-time">${r.time}<span>分钟</span></div>${votesHtml}</div>
+      <div class="route-cost"><div class="cost-num">¥${r.cost}</div><div class="cost-label">预估费用</div></div>
+    </div>
+    <div class="route-viz" style="margin-top:28px">${segs}</div>
+    ${saveHtml}
+    <div class="route-steps">
+      <div style="font-size:11px;color:var(--muted);font-family:JetBrains Mono;margin-bottom:8px;margin-top:10px">── 详细步骤 ──</div>
+      ${steps}
+      <div class="route-actions">
+        <button class="action-btn btn-primary">导航此路线</button>
+        <button class="action-btn btn-vote" onclick="event.stopPropagation();voteRoute(this)">▲ 好用</button>
+        <button class="action-btn btn-share" onclick="event.stopPropagation();shareRoute()">分享</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleCard(el) {
+  el.classList.toggle('expanded');
+}
+
+function voteRoute(btn) {
+  btn.classList.toggle('voted');
+  btn.textContent = btn.classList.contains('voted') ? '✓ 已点赞' : '▲ 好用';
+  if(btn.classList.contains('voted')) showToast('感谢你的认可！此路线热度+1');
+}
+
+function shareRoute() { showToast('链接已复制，快分享给朋友'); }
+
+// ===== 推荐步骤 =====
+function addStep() {
+  const sb = document.getElementById('step-builder');
+  const id = stepCount++;
+  const div = document.createElement('div');
+  div.className='step-row'; div.id='sr-'+id;
+  div.innerHTML=`
+    <select class="step-select">
+      <option value="walk">🚶 步行</option>
+      <option value="intercity">🚄 城际</option>
+      <option value="metro">🚇 地铁</option>
+      <option value="train">🚂 高铁</option>
+      <option value="bus">🚌 公交</option>
+    </select>
+    <input class="step-text-input" placeholder="描述此段">
+    <button class="del-btn" onclick="delStep(${id})">×</button>
+  `;
+  sb.appendChild(div);
+}
+
+function delStep(id) {
+  const el = document.getElementById('sr-'+id);
+  if(el) el.remove();
+}
+
+function submitRoute() {
+  const name = document.getElementById('c-name').value.trim();
+  if(!name){ showToast('请填写路线名称'); return; }
+  const time = document.getElementById('c-time').value;
+  const cost = document.getElementById('c-cost').value;
+
+  communityData.unshift({
+    id: Date.now(), name, votes:1, voted:false,
+    tags:['新上线','待验证'],
+    tagColors:['var(--accent)','var(--muted)'],
+    time: time||'?', cost: cost||'?',
+    author:'你',
+    summary: document.getElementById('c-note').value || '暂无描述'
+  });
+  document.getElementById('community-count').textContent = communityData.length;
+  showToast('✅ 路线已提交！进入社区审核');
+  setTimeout(()=>{ switchTab('community'); }, 1200);
+}
+
+// ===== 社区 =====
+function renderCommunity() {
+  const list = document.getElementById('community-list');
+  list.innerHTML = communityData.map(r=>`
+    <div class="community-card">
+      <div class="community-meta">
+        <div class="route-title">${r.name}</div>
+        <div class="vote-count">▲ ${r.votes}</div>
+      </div>
+      <div class="community-tags">
+        ${r.tags.map((t,i)=>`<span class="tag" style="border:1px solid ${r.tagColors[i]};color:${r.tagColors[i]}">${t}</span>`).join('')}
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">${r.summary}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">
+        ⏱ ${r.time}分钟 &nbsp;·&nbsp; 💰 ¥${r.cost}
+      </div>
+      <div class="author-row">
+        <span>by ${r.author}</span>
+        <button class="vote-btn ${r.voted?'voted':''}" onclick="communityVote(${r.id},this)">
+          ${r.voted?'✓ 已推荐':'▲ 推荐'}
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function communityVote(id, btn) {
+  const r = communityData.find(x=>x.id===id);
+  if(!r) return;
+  r.voted = !r.voted;
+  r.votes += r.voted ? 1 : -1;
+  renderCommunity();
+  if(r.voted) showToast('已推荐，感谢你的贡献！');
+}
+
+// ===== Toast =====
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>

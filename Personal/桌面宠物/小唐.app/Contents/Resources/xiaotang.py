@@ -115,8 +115,8 @@ def _safe_collection_behavior(win):
         # 数字常量兜底（不依赖常量名）
         # NSWindowCollectionBehaviorCanJoinAllSpaces = 1
         # NSWindowCollectionBehaviorStationary = 16
-        # NSWindowCollectionBehaviorFullScreenAuxiliary = 256
-        behavior = 1 | 16 | 256
+        # 去掉 FullScreenAuxiliary（它只对同 app 有效）
+        behavior = 1 | 16
         win.setCollectionBehavior_(behavior)
     except Exception as e:
         log(f"setCollectionBehavior_ 失败: {e}")
@@ -154,28 +154,49 @@ class _ContentView(AppKit.NSView):
                 pass
 
 class _BubbleBGView(AppKit.NSView):
-    """气泡背景视图（圆角 + 橙框）"""
+    """气泡背景视图（炫酷黑云朵透明形状）"""
     def drawRect_(self, rect):
         try:
-            AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(
-                1.0, 0.97, 0.88, 0.97).setFill()
+            bounds = self.bounds()
+            inset = AppKit.NSInsetRect(bounds, 2, 2)
+
+            # 云朵形状：大圆角矩形
             path = AppKit.NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
-                AppKit.NSInsetRect(self.bounds(), 1, 1), 14, 14)
+                inset, 18, 18)
+
+            # 炫酷黑半透明填充（透明度0.75，能看到后面内容）
+            AppKit.NSColor.colorWithCalibratedWhite_alpha_(0.1, 0.75).setFill()
             path.fill()
+
+            # 亮橙色轮廓（炫酷感）
             AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(
-                1.0, 0.55, 0.1, 1.0).setStroke()
+                1.0, 0.6, 0.2, 0.8).setStroke()
             path.setLineWidth_(2.0)
             path.stroke()
         except:
             pass
 
-class _CatWindow(AppKit.NSWindow):
+class _CatWindow(AppKit.NSPanel):
     _drag_start_loc      = None
     _drag_start_origin   = None
     _drag_moved          = False
     _last_click_t        = 0
     _left_click_pending  = False
     _right_click_pending = False
+
+    def _menuTap_(self, sender):
+        """处理菜单文本点击"""
+        try:
+            tag = sender.tag()
+            self._menu_click_tag = tag
+            # 非已完成折叠(当前tag判断)，关闭菜单
+            # 已完成折叠的tag由 _toggle_done 自己控制
+            self._menu_should_close = True
+        except Exception as e:
+            log(f"菜单点击错误: {e}")
+    _menu_should_close = True
+
+    _menu_click_tag = -1  # 由 tkinter 轮询
 
     def mouseDown_(self, evt):
         try:
@@ -277,18 +298,23 @@ def _translate_weather(text):
     ]
     for eng, chn in mapping:
         if eng in t:
-            # 提取温度
             import re
-            temp = re.search(r'[+-]?\d+°?[CcFf]?', text)
-            temp_str = temp.group() if temp else ""
-            return f"{chn} {temp_str}".strip()
+            temp_match = re.search(r'([+-]?\d+)°?([CcFf])?', text)
+            if temp_match:
+                sign = temp_match.group(1)[0] if temp_match.group(1)[0] in "+-" else ""
+                num = temp_match.group(1).lstrip("+-")
+                if sign == "-":
+                    return f"{chn} 零下{num}摄氏度"
+                else:
+                    return f"{chn} {num}摄氏度"
+            return chn
     return text
 
 # ══════ 语音 ══════
 _say_proc = None  # 上一个 say 进程，用于避免重叠
 _voice_name = "Meijia"
-_voice_rate = 210
-_voice_volume = 80
+_voice_rate = 240
+_voice_volume = 60
 
 def speak(text):
     # 去除 emoji，保留中英文和标点
@@ -298,31 +324,40 @@ def speak(text):
         '', text, flags=re.UNICODE).strip()
     if not clean:
         return
+    # 去除特殊符号
+    clean = re.sub(r'[~～♡♥♪♫❤★☆✨💕🌸]', '', clean)
     # 添加停顿：在标点后加逗号，让语音更自然
     clean = re.sub(r'([。！？])', r'，', clean)
-    # 非阻塞方式启动 say，避免线程 GIL 冲突
     global _say_proc
+    if _voice_volume == 0:
+        return  # 静音模式，不播放
     try:
         if _say_proc and _say_proc.poll() is None:
             _say_proc.kill()
     except:
         pass
     try:
+        # 设置系统音量
+        subprocess.Popen(["osascript", "-e", f"set volume output volume {_voice_volume}"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # 播报
         _say_proc = subprocess.Popen(
             ["say", "-v", _voice_name, "-r", str(_voice_rate), clean],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except:
         pass
 
-# ══════ 气泡（完全用 tkinter after 驱动）══════
+# ══════ 气泡（动态适配 + 语音同步）══════
+_say_proc = None  # 上一个 say 进程
+
 class BubblePanel:
     def __init__(self, cat_win, tk_root):
         self._cat_win    = cat_win
         self._root       = tk_root
         self._panel      = None
         self._lbl        = None
-        self._aid_type   = None   # typewrite after-id
-        self._aid_close  = None   # close after-id
+        self._aid_type   = None
+        self._aid_close  = None
         self._full_txt   = ""
         self._char_idx   = 0
         self._on_done    = None
@@ -341,41 +376,43 @@ class BubblePanel:
         self._char_idx = 0
         log(f"气泡: {text[:30]}{'...' if len(text)>30 else ''}")
 
-        BW, BH = 330, 105
+        # 动态计算尺寸：根据文字长度
+        text_len = len(text)
+        max_chars_per_line = 16
+        lines = max(1, (text_len + max_chars_per_line - 1) // max_chars_per_line)
+        lines = min(lines, 4)  # 最多4行
+        BW = min(280, max(120, text_len * 12 + 50))
+        BH = lines * 22 + 28
+
         try:
+            # 使用 nonactivatingPanel 样式（与小猫窗口一致，确保全屏可见）
+            style = AppKit.NSWindowStyleMaskBorderless | (1 << 7)
             panel = AppKit.NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
                 AppKit.NSMakeRect(0, 0, BW, BH),
-                AppKit.NSWindowStyleMaskBorderless,
+                style,
                 AppKit.NSBackingStoreBuffered, False)
             panel.setOpaque_(False)
             panel.setBackgroundColor_(AppKit.NSColor.clearColor())
             panel.setHasShadow_(True)
-            panel.setLevel_(AppKit.NSStatusWindowLevel + 2)
+            panel.setLevel_(AppKit.NSFloatingWindowLevel + 1)
             panel.setIgnoresMouseEvents_(True)
             panel.setHidesOnDeactivate_(False)
+            panel.setFloatingPanel_(True)
             _safe_collection_behavior(panel)
 
             bg = _BubbleBGView.alloc().initWithFrame_(
                 AppKit.NSMakeRect(0, 0, BW, BH))
 
-            # 猫头 emoji
-            icon = _ns_label("🐱")
-            if icon:
-                icon.setFont_(AppKit.NSFont.systemFontOfSize_(22))
-                icon.setFrame_(AppKit.NSMakeRect(10, BH // 2 - 14, 34, 34))
-                bg.addSubview_(icon)
-
-            # 正文（兼容 pyobjc 8.x）
+            # 正文
             lbl = _ns_label("")
             if lbl:
                 try:
                     lbl.setTextColor_(
-                        AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(
-                            0.15, 0.06, 0.0, 1.0))
+                        AppKit.NSColor.colorWithCalibratedWhite_alpha_(1.0, 1.0))
                 except:
                     pass
                 try:
-                    lbl.setFont_(AppKit.NSFont.boldSystemFontOfSize_(14))
+                    lbl.setFont_(AppKit.NSFont.systemFontOfSize_(13))
                 except:
                     pass
                 try:
@@ -386,7 +423,7 @@ class BubblePanel:
                     lbl.setLineBreakMode_(0)
                 except:
                     pass
-                lbl.setFrame_(AppKit.NSMakeRect(50, 8, BW - 62, BH - 18))
+                lbl.setFrame_(AppKit.NSMakeRect(12, 8, BW - 24, BH - 16))
                 bg.addSubview_(lbl)
 
             panel.setContentView_(bg)
@@ -395,7 +432,7 @@ class BubblePanel:
             try:
                 cf  = self._cat_win.frame()
                 bx  = cf.origin.x + cf.size.width / 2 - BW / 2
-                by  = cf.origin.y + cf.size.height + 12
+                by  = cf.origin.y + cf.size.height + 8
                 scr = AppKit.NSScreen.mainScreen().frame()
                 bx  = max(8, min(bx, scr.size.width - BW - 8))
                 by  = min(by, scr.size.height - BH - 8)
@@ -412,7 +449,6 @@ class BubblePanel:
             self._panel = None
             self._lbl   = None
 
-        # 无论气泡是否创建成功，都启动逐字 + 关闭定时
         self._typewrite()
 
     def _cancel_timers(self):
@@ -434,10 +470,14 @@ class BubblePanel:
                     self._lbl.setStringValue_(self._full_txt[:self._char_idx])
                 except:
                     pass
-            delay = 75 if ch in "，。！？,.!?~～" else 40
+            delay = 60 if ch in "，。！？,.!?~～" else 30
             self._aid_type = self._root.after(delay, self._typewrite)
         else:
-            wait = max(3000, min(len(self._full_txt) * 55 + 1500, 7000))
+            # 文字显示完成后，等待语音读完再关闭
+            # 估算语音时长：每个字约0.15秒 + 标点停顿
+            speak_duration = len(self._full_txt) * 0.12 + 1.5
+            speak_ms = int(speak_duration * 1000)
+            wait = max(2000, min(speak_ms, 15000))
             self._aid_close = self._root.after(wait, self._close)
 
     def _close(self):
@@ -451,8 +491,9 @@ class BubblePanel:
         cb = self._on_done
         self._on_done = None
         if cb:
+            # 延迟0.3秒再显示下一个气泡
             try:
-                cb()
+                self._root.after(300, cb)
             except:
                 pass
 
@@ -473,13 +514,167 @@ DEFAULT_TEMPLATES = [
     {"title": "家长接送沟通",        "start_time": "17:00", "duration": 20},
 ]
 
+# ══════ 打招呼随机语 ══════
+_GREETING_PRAISE = [
+    "主人今天状态真好，神采飞扬！",
+    "主人今天漂亮又干练，太棒了！",
+    "主人今天的穿搭很有品味！",
+    "主人今天精神饱满，充满活力！",
+    "主人笑容很温暖，看了就让人开心！",
+    "主人今天格外有魅力！",
+    "主人今天看起来很厉害的样子！",
+    "主人今天心情不错，我也开心！",
+    "主人今天气色真好，容光焕发！",
+    "主人今天就是全场的焦点！",
+    "主人今天优雅大方，气质出众！",
+    "主人举手投足间都散发着自信！",
+    "主人今天的状态让人眼前一亮！",
+    "主人今天的发型很适合你！",
+    "主人今天说话的语气特别温柔！",
+    "主人今天做事特别利落！",
+    "主人今天认真工作的样子很迷人！",
+    "主人今天的笑容特别灿烂！",
+    "主人非常聪明又有才华！",
+    "主人总是能给人带来惊喜！",
+    "主人的品味一直都很在线！",
+    "主人今天红光满面，气色好极了！",
+    "主人今天的妆容精致又自然！",
+    "主人今天的眼神特别有神采！",
+    "主人今天气场强大，镇得住场！",
+    "主人总是能把事情处理得井井有条！",
+    "主人的想法总是很有创意！",
+    "主人今天看起来心情特别好！",
+    "主人今天的举止特别优雅！",
+    "主人身上有一种独特的魅力！",
+    "主人今天格外耀眼夺目！",
+    "主人总是那么温柔体贴！",
+    "主人今天的表现特别出色！",
+    "主人天生就是做大事的人！",
+    "主人有一种让人安心的力量！",
+    "主人今天格外美丽动人！",
+]
+_GREETING_ENCOURAGE = [
+    "主人加油，你是最棒的！",
+    "主人一定行，没有什么可以难倒你！",
+    "主人坚持下去，胜利就在前方！",
+    "主人今天也要元气满满！",
+    "主人不要怕，大胆去做，我支持你！",
+    "主人每一步都在进步，很棒！",
+    "主人今天的工作一定顺顺利利！",
+    "主人相信你自己，你可以的！",
+    "主人今天也要全力以赴！",
+    "主人不管做什么都会成功的！",
+    "主人，今天也要加油努力！",
+    "主人，困难只是暂时的！",
+    "主人，你有无限的潜力！",
+    "主人，勇敢追求自己想要的一切！",
+    "主人，你是自己人生的主角！",
+    "主人，不要给自己太大压力！",
+    "主人，放轻松，一切都会好起来的！",
+    "主人，你比你想象中更强大！",
+    "主人，每一次尝试都是成长！",
+    "主人，好运气正在向你赶来！",
+    "主人，努力的人运气不会太差！",
+    "主人，再坚持一下就能看到曙光！",
+    "主人，你可以成为任何你想成为的人！",
+    "主人，别着急，好的都在后面！",
+    "主人，相信过程，结果自然不会差！",
+    "主人，你已经做得很好了！",
+    "主人，保持积极的心态最重要！",
+    "主人，慢慢来，不用急！",
+    "主人，你的努力一定会被看见！",
+    "主人，今天也要开开心心的！",
+    "主人，深呼吸，一切都会顺利的！",
+    "主人，未来可期，加油！",
+    "主人，今天也是充满希望的一天！",
+    "主人，朝着目标前进吧！",
+    "主人，每天进步一点点就是成功！",
+    "主人，幸福就在努力的路上！",
+]
+_GREETING_BLESS = [
+    "祝主人今天万事如意，心想事成！",
+    "祝主人身体健康，百病不侵！",
+    "祝主人开心每一天，笑容常在！",
+    "祝主人财源广进，钱包鼓鼓！",
+    "祝主人工作顺利，步步高升！",
+    "祝主人好运连连，惊喜不断！",
+    "祝主人天天好心情，事事都顺心！",
+    "祝主人吃好喝好，长生不老！",
+    "祝主人一路平安，诸事顺遂！",
+    "祝主人幸福快乐，永远被爱！",
+    "祝主人今天收获满满！",
+    "祝主人遇到的都是好事！",
+    "祝主人梦想成真，前程似锦！",
+    "祝主人今天也有好运气！",
+    "祝主人烦恼全部消失！",
+    "祝主人每天都能睡个好觉！",
+    "祝主人胃口好，吃饭香！",
+    "祝主人越来越年轻漂亮！",
+    "祝主人每天都充满阳光和能量！",
+    "祝主人笑口常开，烦恼走开！",
+    "祝主人邂逅美好的事物！",
+    "祝主人生活美满，家庭幸福！",
+    "祝主人天天都有小惊喜！",
+    "祝主人顺利度过每一个难关！",
+    "祝主人身边都是温暖的人！",
+    "祝主人未来的路越走越宽！",
+    "祝主人平安喜乐，岁月静好！",
+    "祝主人好事成双，快乐加倍！",
+    "祝主人每一天都比昨天更好！",
+    "祝主人被世界温柔以待！",
+    "祝主人事业蒸蒸日上！",
+    "祝主人想要的都拥有！",
+    "祝主人健康平安，一生顺遂！",
+    "祝主人永远保持好心情！",
+    "祝主人今天也有小确幸！",
+    "祝主人一切安好，幸福常伴！",
+]
+_GREETING_HAPPY = [
+    "今天也是美好的一天！",
+    "和主人在一起的每一天都很开心！",
+    "今天天气不错，主人心情也要美美的！",
+    "主人今天有没有什么开心的事分享呀？",
+    "每次见到主人都特别开心！",
+    "今天也是元气满满的一天呢！",
+    "希望主人的每一天都充满阳光！",
+    "主人开心我就开心，所以要开心哦！",
+    "今天也要微笑面对一切！",
+    "日子过得真快，珍惜每一天！",
+    "今天又是崭新的一天！",
+    "生活很美好，值得好好享受！",
+    "今天的阳光格外温暖！",
+    "今天心情好好，想唱歌！",
+    "今天的风和日丽，适合出去走走！",
+    "今天感觉自己特别棒！",
+    "今天也是活力四射的一天！",
+    "人生得意须尽欢！",
+    "今天要对自己好一点！",
+    "开心也是一天，不开心也是一天！",
+    "今天有没有什么有趣的事情？",
+    "今天的心情像彩虹一样绚烂！",
+    "每天都是新的开始！",
+    "今天也要做个快乐的小可爱！",
+    "生活不仅有眼前的苟且，还有诗和远方！",
+    "今天适合喝杯咖啡，放松一下！",
+    "今天的幸福指数很高！",
+    "今天也是被幸运眷顾的一天！",
+    "今天要做自己喜欢的事！",
+    "今天的快乐是双倍的！",
+    "今天和昨天不一样，值得期待！",
+    "今天也要好好爱自己！",
+    "今天的空气都是甜的！",
+    "保持热爱，奔赴山海！",
+    "生活明朗，万物可爱！",
+    "今天也要甜甜的！",
+]
+
 class DataManager:
     def __init__(self):
         self.data = {
             "schedules": [], "history": [], "notes": {},
             "templates": [t.copy() for t in DEFAULT_TEMPLATES],
             "event_counts": {},
-            "voice": {"name": "Meijia", "rate": 210, "volume": 80},
+            "voice": {"name": "Meijia", "rate": 240, "volume": 60},
             "pet_name": "小唐",
         }
         self._load()
@@ -487,7 +682,7 @@ class DataManager:
         self.data["templates"] = [t.copy() for t in DEFAULT_TEMPLATES]
         # 确保语音设置存在
         if "voice" not in self.data:
-            self.data["voice"] = {"name": "Meijia", "rate": 210, "volume": 80}
+            self.data["voice"] = {"name": "Meijia", "rate": 240, "volume": 60}
         if "pet_name" not in self.data:
             self.data["pet_name"] = "小唐"
 
@@ -505,8 +700,8 @@ class DataManager:
         global _voice_name, _voice_rate, _voice_volume
         v = self.data.get("voice", {})
         _voice_name = v.get("name", "Meijia")
-        _voice_rate = v.get("rate", 210)
-        _voice_volume = v.get("volume", 80)
+        _voice_rate = v.get("rate", 240)
+        _voice_volume = v.get("volume", 60)
 
     def set_voice(self, name, rate, volume=None):
         v = {"name": name, "rate": rate}
@@ -618,6 +813,62 @@ class DataManager:
             lines.append("  （该时间段暂无日程）")
         return "\n".join(lines)
 
+# ══════ 同步到备忘录 ══════
+def sync_to_notes(dm):
+    """将当天日程写入macOS备忘录"""
+    try:
+        today = datetime.date.today()
+        today_str = today.isoformat()
+        month_str = today.strftime("%Y年%m月")
+        pet_name = dm.data.get("pet_name", "小唐")
+        note_name = f"{pet_name}{month_str}事项"
+
+        items = [s for s in dm.data.get("schedules", []) if s.get("date") == today_str]
+        items.sort(key=lambda x: x.get("start_time", "00:00"))
+        stars = "⭐️" * 10
+        html_parts = [f"<b>{stars} {today_str} {stars}</b>"]
+        for s in items:
+            mark = "&#9989;" if s.get("completed") else "&#11093;"
+            html_parts.append(f"{mark} {s['start_time']} {s['title']} ({s['duration']}分钟)")
+        html_body = "<br/>".join(html_parts)
+        html_full = f"<html><body style='font-family:Helvetica;font-size:13px'>{html_body}</body></html>"
+
+        tmp = Path.home() / ".xiaotang_note_tmp"
+        tmp.write_text(html_full, encoding="utf-8")
+        script = f'''
+        tell application "Notes"
+            set noteName to "{note_name}"
+            set noteHtml to (do shell script "cat {tmp}")
+            try
+                set theNote to first note whose name is noteName
+                set body of theNote to noteHtml
+            on error
+                make new note with properties {{name:noteName, body:noteHtml}}
+            end try
+        end tell
+        '''
+        subprocess.run(["osascript", "-e", script], capture_output=True, timeout=10)
+        tmp.unlink(missing_ok=True)
+        return True
+    except Exception as e:
+        log(f"同步备忘录失败: {e}")
+        return False
+
+# ══════ 完成播报 ══════
+def _completion_text(dm):
+    """根据完成状态返回合适的播报文本"""
+    today = datetime.date.today().isoformat()
+    items = [s for s in dm.data.get("schedules", []) if s.get("date") == today]
+    if not items:
+        return "主人真厉害！"
+    done_count = sum(1 for s in items if s.get("completed"))
+    total = len(items)
+    if done_count == total:
+        return "全部完成，收工！"
+    if done_count == 1:
+        return "今日首项已完成！"
+    return "主人真厉害！"
+
 # ══════ 主程序 ══════
 class XiaoTang:
     SIZE = 192
@@ -674,6 +925,7 @@ class XiaoTang:
 
         threading.Thread(target=self._reminder_loop,    daemon=True).start()
         threading.Thread(target=self._random_chat_loop, daemon=True).start()
+        threading.Thread(target=self._auto_sync_loop,   daemon=True).start()
 
         self.root.after(500,  self._update_state)
         self.root.after(500,  self._poll_clicks)
@@ -692,16 +944,20 @@ class XiaoTang:
             wx = screen.origin.x + screen.size.width - sz - 20
             wy = screen.origin.y + 50
 
+            # 使用 NSPanel + nonactivatingPanel 样式（参考 sema-code）
+            # NSWindowStyleMaskNonactivatingPanel = 1 << 7 = 128
+            style = AppKit.NSWindowStyleMaskBorderless | (1 << 7)
             win = _CatWindow.alloc().initWithContentRect_styleMask_backing_defer_(
                 AppKit.NSMakeRect(wx, wy, sz, sz),
-                AppKit.NSWindowStyleMaskBorderless,
+                style,
                 AppKit.NSBackingStoreBuffered, False)
             win.setOpaque_(False)
             win.setBackgroundColor_(AppKit.NSColor.clearColor())
             win.setHasShadow_(False)
-            win.setLevel_(AppKit.NSStatusWindowLevel + 1)
+            win.setLevel_(AppKit.NSFloatingWindowLevel)  # 浮动层级
             win.setIgnoresMouseEvents_(False)
             win.setHidesOnDeactivate_(False)
+            win.setFloatingPanel_(True)
             _safe_collection_behavior(win)
 
             # 左键点击由 _poll_clicks 轮询处理，不从 AppKit 回调直接调用 tkinter
@@ -740,7 +996,26 @@ class XiaoTang:
             if self._win._right_click_pending:
                 self._win._right_click_pending = False
                 self._show_cat_menu()
-                self._show_cat_menu()
+            # 处理菜单点击
+            tag = self._win._menu_click_tag
+            if tag >= 0:
+                should_close = self._win._menu_should_close
+                self._win._menu_click_tag = -1
+                self._win._menu_should_close = True
+                if hasattr(self._win, '_menu_actions') and tag < len(self._win._menu_actions):
+                    action = self._win._menu_actions[tag]
+                    if callable(action):
+                        try:
+                            action()
+                        except Exception as e:
+                            log(f"菜单动作错误: {e}")
+                # 关闭菜单（已完成折叠除外）
+                if should_close and self._cat_menu_win:
+                    try:
+                        self._cat_menu_win.orderOut_(None)
+                    except:
+                        pass
+                    self._cat_menu_win = None
         except Exception as e:
             log(f"_poll_clicks: {e}")
         self.root.after(100, self._poll_clicks)
@@ -750,200 +1025,275 @@ class XiaoTang:
     _show_completed = False  # 是否展开已完成
 
     def _show_cat_menu(self):
-        """左键点击小猫弹出菜单（紧靠小猫左侧）"""
+        """左键点击小猫弹出菜单"""
         if self._cat_menu_win:
-            try: self._cat_menu_win.destroy()
+            try: self._cat_menu_win.orderOut_(None)
             except: pass
             self._cat_menu_win = None
 
         try:
-            menu = tk.Toplevel(self.root)
-            menu.overrideredirect(True)
-            menu.configure(bg="#FFF5EB")
-            menu.attributes("-topmost", True)
-            self._cat_menu_win = menu
+            # 用 NSCustomPanel 替代 tkinter，完全不抢焦点
+            style = AppKit.NSWindowStyleMaskBorderless | (1 << 7)
+            panel = AppKit.NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
+                AppKit.NSMakeRect(0, 0, 220, 400),
+                style,
+                AppKit.NSBackingStoreBuffered, False)
+            panel.setOpaque_(True)
+            panel.setBackgroundColor_(AppKit.NSColor.colorWithCalibratedWhite_alpha_(0.1, 0.94))
+            panel.setHasShadow_(True)
+            panel.setLevel_(AppKit.NSFloatingWindowLevel + 1)
+            panel.setIgnoresMouseEvents_(False)
+            panel.setHidesOnDeactivate_(False)
+            panel.setFloatingPanel_(True)
+            _safe_collection_behavior(panel)
+            self._cat_menu_win = panel
 
-            bw = 280
+            # 内容视图
+            cv = AppKit.NSView.alloc().initWithFrame_(AppKit.NSMakeRect(0, 0, 220, 400))
+            panel.setContentView_(cv)
 
-            def _close_menu(e=None):
-                try: menu.destroy()
-                except: pass
-                self._cat_menu_win = None
-
-            # 问候区
+            # 构建所有菜单项
+            rows = []  # [(text, action), ...]
             if self._pending_done_question:
-                title = self._pending_done_question
-                for text, cmd in [(f"✅ 做完了「{title}」", self._done_yes),
-                                  ("⏰ 还没，再给1小时", self._done_no)]:
-                    def _c(c=cmd):
-                        _close_menu(); c()
-                    btn = tk.Button(menu, text=text, command=_c,
-                                    font=("PingFang SC", 13), relief="flat", anchor="w",
-                                    padx=14, pady=5, bg="#FFF5EB", fg="#333",
-                                    activebackground="#FFE0CC", cursor="arrow")
-                    btn.pack(fill="x")
+                t = self._pending_done_question
+                rows.append((f"✅ 做完了「{t}」", self._done_yes))
+                rows.append(("⏰ 还没，再给1小时", self._done_no))
             else:
-                def _greet():
+                # 💬 打招呼（完整问候：日期+天气+节日）
+                def _greeting():
                     now = datetime.datetime.now()
-                    ds = now.strftime("%m月%d日")
+                    ds = now.strftime("%Y年%m月%d日")
                     wds = ["星期一","星期二","星期三","星期四","星期五","星期六","星期日"]
                     wd = wds[now.weekday()]
+                    h = now.hour
+                    time_word = "早上" if 5 <= h < 12 else "上午" if h < 12 else "中午" if h < 14 else "下午" if h < 18 else "晚上"
                     holiday = _get_holiday()
-                    if holiday:
-                        msg = f"主人你好呀！今天是{ds}{wd}，{holiday}快乐！🎊"
-                    elif now.weekday() == 4:
-                        msg = f"主人你好呀！今天是{ds}{wd}，终于周五啦！马上就可以休息了！🎉"
+                    holiday_text = f"，{holiday}快乐" if holiday else ""
+                    try:
+                        weather = get_weather("深圳")
+                    except:
+                        weather = "天气未知"
+                    extra = ""
+                    if now.weekday() == 4:
+                        extra = "终于周五了，马上就可以休息了。"
                     elif now.weekday() == 5:
-                        msg = f"主人你好呀！今天是{ds}{wd}，主人加班辛苦了，下班就可以美美休息了呢~ 💪"
-                    else:
-                        msg = f"主人你好呀！今天是{ds}{wd}。"
+                        extra = "今天是周六，加班辛苦啦。"
+                    msg = f"主人，{time_word}好呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}适当休息，祝主人开开心心，发财暴富，爱你呦！"
                     self._enqueue(msg)
-                btn = tk.Button(menu, text="💬 打招呼", cursor="arrow",
-                                command=lambda: (_close_menu(), _greet()),
-                                font=("PingFang SC", 13), relief="flat", anchor="w",
-                                padx=14, pady=5, bg="#FFF5EB", fg="#333",
-                                activebackground="#FFE0CC")
-                btn.pack(fill="x")
+                rows.append(("💬 打招呼", _greeting))
 
-            # 今日待办区
-            tk.Frame(menu, bg="#DDD", height=1).pack(fill="x", padx=8)
-            todo_frame = tk.Frame(menu, bg="#FFF5EB")
-            todo_frame.pack(fill="x")
+                # 四个语录板块
+                # 一行展示四个板块，每个可独立点击
+                def _cat_click(cl_list):
+                    self._enqueue(random.choice(cl_list))
+                rows.append(("c4", _cat_click))  # 特殊标记"c4"，行绘制时特殊处理
 
-            def _refresh_todos():
-                for w in todo_frame.winfo_children():
-                    w.destroy()
-                items = self.dm.today_schedules()
-                if not items:
-                    return
+            # 语音设置（固定在第2个位置，tag=1）
+            v = self.dm.data.get("voice", {})
+            vn = v.get("name", "Meijia")
+            spd = v.get("rate", 240)
+            vol = v.get("volume", 60)
+            spd_vals = {"慢":150,"中":210,"中快":240,"快":270,"极快":300}
+            vol_vals = {"静音":0,"低":30,"中":60,"高":80,"最大":100}
+            spd_l = next((k for k, val in spd_vals.items() if val == spd), "中快")
+            vol_l = next((k for k, val in vol_vals.items() if val == vol), "中")
+            def _voice_settings():
+                log("打开语音设置")
+                pop = tk.Toplevel(self.root)
+                pop.title("语音设置")
+                pop.configure(bg="#151515")
+                pop.overrideredirect(True)
+                pop.attributes("-topmost", True)
+                # 定位在菜单右侧（屏幕内）
+                cf = self._win.frame()
+                scr = AppKit.NSScreen.mainScreen().frame()
+                px = int(cf.origin.x + cf.size.width + 6)
+                py = int(scr.size.height - cf.origin.y - cf.size.height + cf.size.height/2 - 90)
+                if px + 200 > scr.size.width - 10:
+                    px = int(cf.origin.x - 206)
+                if py < 40:
+                    py = 40
+                pop.geometry(f"200x180+{px}+{py}")
+                # 点击外部自动关闭
+                def _pop_check_close():
+                    if not pop.winfo_exists():
+                        return
+                    try:
+                        mp = AppKit.NSEvent.mouseLocation()
+                        scre = AppKit.NSScreen.mainScreen().frame()
+                        gx = px
+                        gy_tk = py
+                        gy_mac = int(scre.size.height - gy_tk - 180)
+                        if not (gx <= mp.x <= gx + 200 and gy_mac <= mp.y <= gy_mac + 180):
+                            if AppKit.NSEvent.pressedMouseButtons() & 1:
+                                try: pop.destroy()
+                                except: pass
+                                return
+                    except:
+                        pass
+                    if pop.winfo_exists():
+                        pop.after(150, _pop_check_close)
+                pop.after(300, _pop_check_close)
+                # 标题
+                tk.Label(pop, text="语音设置", bg="#151515", fg="#87CEEB",
+                         font=("PingFang SC", 13, "bold")).pack(pady=(8, 2))
+                # 人声
+                v_voice = tk.StringVar(value=vn)
+                f1 = tk.Frame(pop, bg="#151515"); f1.pack(padx=14, pady=2)
+                tk.Label(f1, text="人声", bg="#151515", fg="#aaa",
+                         font=("PingFang SC", 10)).pack(side="left")
+                cb_voice = ttk.Combobox(f1, textvariable=v_voice,
+                    values=["Meijia","Ting-Ting","Sandy","Shelley","Flo"],
+                    width=12, state="readonly")
+                cb_voice.pack(side="left", padx=4)
+                # 语速
+                v_spd = tk.StringVar()
+                f2 = tk.Frame(pop, bg="#151515"); f2.pack(padx=14, pady=2)
+                tk.Label(f2, text="语速", bg="#151515", fg="#aaa",
+                         font=("PingFang SC", 10)).pack(side="left")
+                spd_items = [f"{k}({v})" for k,v in spd_vals.items()]
+                cb_spd = ttk.Combobox(f2, textvariable=v_spd,
+                    values=spd_items, width=10, state="readonly")
+                cb_spd.pack(side="left", padx=4)
+                cb_spd.set(f"{spd_l}({spd_vals[spd_l]})")
+                # 音量
+                v_vol = tk.StringVar()
+                f3 = tk.Frame(pop, bg="#151515"); f3.pack(padx=14, pady=2)
+                tk.Label(f3, text="音量", bg="#151515", fg="#aaa",
+                         font=("PingFang SC", 10)).pack(side="left")
+                vol_items = [f"{k}({v})" for k,v in vol_vals.items()]
+                cb_vol = ttk.Combobox(f3, textvariable=v_vol,
+                    values=vol_items, width=10, state="readonly")
+                cb_vol.pack(side="left", padx=4)
+                cb_vol.set(f"{vol_l}({vol_vals[vol_l]})")
+                # 保存
+                def _apply():
+                    try:
+                        sr = spd_vals[v_spd.get().split("(")[0]]
+                        vr = vol_vals[v_vol.get().split("(")[0]]
+                        self.dm.set_voice(v_voice.get(), sr, vr)
+                        pop.destroy()
+                    except Exception as e:
+                        log(f"语音保存错误: {e}")
+                tk.Button(pop, text="💾 保存", command=_apply,
+                          bg="#333", fg="#87CEEB", font=("PingFang SC", 11),
+                          relief="flat").pack(pady=6)
+            rows.append((f"🔊 {vn} · {spd_l} · {vol_l}", _voice_settings))
+
+            # 今日待办（已完成折叠）
+            items = self.dm.today_schedules()
+            if items:
                 items_sorted = sorted(items, key=lambda x: x["start_time"])
-                done_items = [i for i in items_sorted if i.get("completed")]
-                pend_items = [i for i in items_sorted if not i.get("completed")]
-
+                pend_items = [i for i in items_sorted if not i.get("completed")][:4]
+                done_items = [i for i in items_sorted if i.get("completed")][:4]
                 # 未完成
-                for item in pend_items[:6]:
-                    title = item["title"][:4]
-                    label = f"⬜ {item['start_time']} {title}"
-                    def _toggle(it=item):
-                        it["completed"] = True
+                for it in pend_items:
+                    label = f"⬜ {it['start_time']} {it['title'][:4]}"
+                    def _toggle(it=it):
+                        it["completed"] = not it.get("completed", False)
                         self.dm.save()
-                        speak(f"主人真棒！「{it['title']}」完成啦！")
-                        _refresh_todos()
-                    b = tk.Button(todo_frame, text=label, command=_toggle,
-                                  font=("PingFang SC", 12), relief="flat", anchor="w",
-                                  padx=14, pady=3, bg="#FFF5EB", fg="#333",
-                                  activebackground="#FFE0CC", cursor="arrow")
-                    b.pack(fill="x")
-
+                        if it["completed"]:
+                            speak(_completion_text(self.dm))
+                    rows.append((label, _toggle))
                 # 已完成折叠
                 if done_items:
-                    def _toggle_done():
-                        self._show_completed = not self._show_completed
-                        _refresh_todos()
+                    self._show_completed = getattr(self, '_show_completed', False)
                     arrow = "▼" if self._show_completed else "▶"
-                    b = tk.Button(todo_frame, text=f"{arrow} 已完成 ({len(done_items)})",
-                                  command=_toggle_done,
-                                  font=("PingFang SC", 11), relief="flat", anchor="w",
-                                  padx=14, pady=2, bg="#F5E6D0", fg="#888",
-                                  activebackground="#FFE0CC", cursor="arrow")
-                    b.pack(fill="x")
+                    def _toggle_done():
+                        self._win._menu_should_close = False
+                        self._show_completed = not self._show_completed
+                        self.root.after(50, self._show_cat_menu)
+                    rows.append((f"{arrow} 已完成({len(done_items)})", _toggle_done))
                     if self._show_completed:
-                        for item in done_items:
-                            title = item["title"][:4]
-                            label = f"✅ {item['start_time']} {title}"
-                            def _untoggle(it=item):
+                        for it in done_items[:5]:
+                            label = f"  ✅ {it['start_time']} {it['title'][:4]}"
+                            def _untoggle(it=it):
                                 it["completed"] = False
                                 self.dm.save()
-                                _refresh_todos()
-                            b = tk.Button(todo_frame, text=label, command=_untoggle,
-                                          font=("PingFang SC", 12), relief="flat", anchor="w",
-                                          padx=28, pady=3, bg="#FFF5EB", fg="#888",
-                                          activebackground="#FFE0CC", cursor="arrow")
-                            b.pack(fill="x")
+                            rows.append((label, _untoggle))
 
-            _refresh_todos()
+            rows.append(("📅 打开日程本", self._open_schedule))
 
-            # 语音设置区（2行：人声一行，语速+音量一行）
-            tk.Frame(menu, bg="#DDD", height=1).pack(fill="x", padx=8)
+            # 存储 actions 到 _win
+            actions = [a for _, a in rows]
+            self._win._menu_actions = actions
 
-            # 第一行：人声
-            v1 = tk.Frame(menu, bg="#FFF5EB")
-            v1.pack(fill="x")
-            voices = ["Meijia", "Ting-Ting", "Sandy", "Shelley", "Flo"]
-            current_voice = self.dm.data.get("voice", {}).get("name", "Meijia")
-            v_voice = tk.StringVar(value=current_voice)
-            tk.Label(v1, text="人声", bg="#FFF5EB", fg="#555",
-                     font=("PingFang SC", 10)).pack(side="left", padx=(14, 2))
-            cb_voice = ttk.Combobox(v1, textvariable=v_voice, values=voices,
-                                     width=12, state="readonly", font=("PingFang SC", 10))
-            cb_voice.pack(side="left", padx=2)
+            # 计算面板高度
+            row_h = 32
+            panel_h = len(rows) * row_h + 8
 
-            # 第二行：语速 + 音量
-            v2 = tk.Frame(menu, bg="#FFF5EB")
-            v2.pack(fill="x")
-            speeds = {"慢": 150, "中": 210, "快": 280}
-            current_rate = self.dm.data.get("voice", {}).get("rate", 210)
-            speed_label = [k for k, v in speeds.items() if v == current_rate][0] if current_rate in speeds.values() else "中"
-            v_speed = tk.StringVar(value=speed_label)
-            tk.Label(v2, text="语速", bg="#FFF5EB", fg="#555",
-                     font=("PingFang SC", 10)).pack(side="left", padx=(14, 2))
-            cb_speed = ttk.Combobox(v2, textvariable=v_speed,
-                                     values=list(speeds.keys()),
-                                     width=3, state="readonly", font=("PingFang SC", 10))
-            cb_speed.pack(side="left", padx=2)
+            # 绘制按钮行
+            for i, (text, action) in enumerate(rows):
+                y = panel_h - (i + 1) * row_h - 4
 
-            volumes = {"静音": 0, "低": 30, "中": 60, "高": 80, "最大": 100}
-            current_vol = self.dm.data.get("voice", {}).get("volume", 80)
-            vol_label = [k for k, v in volumes.items() if v == current_vol][0] if current_vol in volumes.values() else "高"
-            v_vol = tk.StringVar(value=vol_label)
-            tk.Label(v2, text="音量", bg="#FFF5EB", fg="#555",
-                     font=("PingFang SC", 10)).pack(side="left", padx=(8, 2))
-            cb_vol = ttk.Combobox(v2, textvariable=v_vol,
-                                   values=list(volumes.keys()),
-                                   width=3, state="readonly", font=("PingFang SC", 10))
-            cb_vol.pack(side="left", padx=2)
+                if text == "c4":
+                    # 特殊行：四个板块（夸夸·鼓励·祝福·开心）一行展示
+                    cats = [("❤️夸夸", _GREETING_PRAISE), ("鼓励", _GREETING_ENCOURAGE),
+                            ("祝福", _GREETING_BLESS), ("开心", _GREETING_HAPPY)]
+                    cat_text = "  ".join([c[0] for c in cats])
+                    lbl = AppKit.NSTextField.labelWithString_(cat_text)
+                    lbl.setFrame_(AppKit.NSMakeRect(14, y + 6, 192, 20))
+                    lbl.setFont_(AppKit.NSFont.boldSystemFontOfSize_(12))
+                    lbl.setTextColor_(AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                        0.53, 0.81, 0.92, 1.0))
+                    cv.addSubview_(lbl)
+                    # 4个独立点击覆盖
+                    seg_w = 48
+                    for ci, (cn, cl) in enumerate(cats):
+                        def _cat_f(cl=cl):
+                            self._enqueue(random.choice(cl))
+                        btn = AppKit.NSButton.alloc().initWithFrame_(
+                            AppKit.NSMakeRect(14 + ci * seg_w, y, seg_w, row_h))
+                        btn.setBordered_(False)
+                        btn.setTitle_("")
+                        btn.setTarget_(self._win)
+                        btn.setAction_("_menuTap:")
+                        actions.append(_cat_f)
+                        btn.setTag_(len(actions) - 1)
+                        cv.addSubview_(btn)
+                else:
+                    # 标准文字标签
+                    lbl = AppKit.NSTextField.labelWithString_(text)
+                    lbl.setFrame_(AppKit.NSMakeRect(14, y + 6, 192, 20))
+                    lbl.setFont_(AppKit.NSFont.boldSystemFontOfSize_(12))
+                    lbl.setTextColor_(
+                        AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                            0.53, 0.81, 0.92, 1.0))
+                    cv.addSubview_(lbl)
 
-            def _apply_voice():
-                vn = v_voice.get()
-                spd = speeds.get(v_speed.get(), 210)
-                vol = volumes.get(v_vol.get(), 80)
-                self.dm.set_voice(vn, spd, vol)
-            cb_voice.bind("<<ComboboxSelected>>", lambda e: _apply_voice())
-            cb_speed.bind("<<ComboboxSelected>>", lambda e: _apply_voice())
-            cb_vol.bind("<<ComboboxSelected>>", lambda e: _apply_voice())
+                    # 点击用透明按钮覆盖
+                    btn = AppKit.NSButton.alloc().initWithFrame_(
+                        AppKit.NSMakeRect(0, y, 220, row_h))
+                    btn.setBordered_(False)
+                    btn.setTitle_("")
+                    btn.setTarget_(self._win)
+                    btn.setAction_("_menuTap:")
+                    btn.setTag_(i)
+                    cv.addSubview_(btn)
 
-            tk.Frame(menu, bg="#DDD", height=1).pack(fill="x", padx=8)
-            btn = tk.Button(menu, text="📅 打开日程本", cursor="arrow",
-                            command=lambda: (_close_menu(), self._open_schedule()),
-                            font=("PingFang SC", 13), relief="flat", anchor="w",
-                            padx=14, pady=5, bg="#FFF5EB", fg="#333",
-                            activebackground="#FFE0CC")
-            btn.pack(fill="x")
+                # 分隔线
+                line = AppKit.NSBox.alloc().initWithFrame_(
+                    AppKit.NSMakeRect(6, y, 208, 1))
+                line.setBoxType_(2)
+                line.setBorderColor_(
+                    AppKit.NSColor.colorWithCalibratedWhite_alpha_(0.3, 1.0))
+                cv.addSubview_(line)
 
-            # 定位 + 跟随
-            menu.update_idletasks()
-            bh = menu.winfo_reqheight()
+            # 调整面板
+            panel.setFrame_display_(
+                AppKit.NSMakeRect(0, 0, 220, panel_h), True)
 
-            def _reposition():
-                if not self._cat_menu_win:
-                    return
-                try:
-                    cf = self._win.frame()
-                    scr = AppKit.NSScreen.mainScreen().frame()
-                    cat_x = int(cf.origin.x)
-                    cat_y_tk = int(scr.size.height - cf.origin.y - cf.size.height)
-                    cat_cy = cat_y_tk + self.SIZE // 2
-                    x = cat_x - bw - 6
-                    y = cat_cy - bh // 2
-                    if x < 8:
-                        x = cat_x + self.SIZE + 6
-                    menu.geometry(f"+{x}+{y}")
-                except:
-                    pass
-                if self._cat_menu_win:
-                    menu.after(200, _reposition)
-
-            _reposition()
+            # 定位到小猫左侧
+            cf = self._win.frame()
+            cat_x = int(cf.origin.x)
+            cat_mid_y = int(cf.origin.y + cf.size.height / 2)
+            bw = 220
+            mx = cat_x - bw - 4
+            my = cat_mid_y - panel_h // 2
+            if mx < 8:
+                mx = int(cf.origin.x + cf.size.width + 4)
+            panel.setFrameOrigin_((mx, my))
+            panel.orderFrontRegardless()
 
             # 点击外部关闭
             def _check_close():
@@ -951,27 +1301,27 @@ class XiaoTang:
                     return
                 try:
                     mp = AppKit.NSEvent.mouseLocation()
-                    scr = AppKit.NSScreen.mainScreen().frame()
-                    mx_tk = int(mp.x)
-                    my_tk = int(scr.size.height - mp.y)
-                    gx = menu.winfo_rootx()
-                    gy = menu.winfo_rooty()
-                    gw = menu.winfo_width()
-                    gh = menu.winfo_height()
-                    if not (gx <= mx_tk <= gx + gw and gy <= my_tk <= gy + gh):
+                    scre = AppKit.NSScreen.mainScreen().frame()
+                    gx = int(panel.frame().origin.x)
+                    gy = int(scre.size.height - panel.frame().origin.y - panel.frame().size.height)
+                    gw = int(panel.frame().size.width)
+                    gh = int(panel.frame().size.height)
+                    if not (gx <= mp.x <= gx + gw and gy <= mp.y <= gy + gh):
                         if AppKit.NSEvent.pressedMouseButtons() & 1:
-                            _close_menu()
+                            panel.orderOut_(None)
+                            self._cat_menu_win = None
                             return
                 except:
                     pass
                 if self._cat_menu_win:
-                    menu.after(150, _check_close)
+                    self.root.after(150, _check_close)
 
-            menu.after(300, _check_close)
+            self.root.after(300, _check_close)
 
         except Exception as e:
+            import traceback
             log(f"菜单弹出失败: {e}")
-            self._enqueue("喵~ 主人你好呀！")
+            log(traceback.format_exc())
 
     def _show_done_options(self):
         """日程结束时自动弹出完成选项"""
@@ -990,7 +1340,7 @@ class XiaoTang:
                 s["completed"] = True
                 self.dm.save()
                 break
-        self._enqueue(f"主人真棒！「{title}」完成啦！🎉 继续加油！")
+        self._enqueue(_completion_text(self.dm))
 
     def _done_no(self):
         title = self._pending_done_question
@@ -1169,6 +1519,12 @@ except Exception as e:
                     self._set_state("working")
                 else:
                     self._set_state("idle")
+            # 每5秒确保窗口在最前（解决全屏时消失问题）
+            if int(now) % 5 == 0:
+                try:
+                    self._win.orderFrontRegardless()
+                except:
+                    pass
         except Exception as e:
             log(f"_update_state: {e}")
         self.root.after(500, self._update_state)
@@ -1276,6 +1632,20 @@ except Exception as e:
                 log(f"random_chat: {e}")
                 time.sleep(60)
 
+    # ─── 自动同步（每天18:00触发）──
+    def _auto_sync_loop(self):
+        while True:
+            try:
+                now = datetime.datetime.now()
+                if now.hour == 18 and now.minute == 0:
+                    log("自动同步到备忘录")
+                    sync_to_notes(self.dm)
+                    time.sleep(61)
+                time.sleep(30)
+            except Exception as e:
+                log(f"auto_sync: {e}")
+                time.sleep(60)
+
     # ─── 早间问候 ──────────────────────────
     def _morning_greeting(self):
         if hasattr(self, '_greeting_done'):
@@ -1295,24 +1665,17 @@ except Exception as e:
             try:
                 weather = get_weather("深圳")
             except:
-                weather = "🌤 天气未知"
+                weather = "天气未知"
             wd_idx = now.weekday()
-            sentences = [f"{greeting}！今天是{ds}{wd}。"]
-            # 节日问候
             holiday = _get_holiday()
-            if holiday:
-                sentences.append(f"今天是{holiday}，祝主人节日快乐！🎊")
-            # 周五/周六特殊文案
-            elif wd_idx == 4:  # 周五
-                sentences.append("终于周五啦！马上就可以休息了！🎉")
-            elif wd_idx == 5:  # 周六
-                sentences.append("主人今天加班辛苦了，下班就可以美美休息了呢~ 💪")
-            sentences.append(f"深圳今天{weather}")
-            sentences.append("快告诉我今天的日程安排吧！")
-            for s in sentences:
-                self.root.after(0, lambda m=s: self._enqueue(m))
-                time.sleep(0.2)
-            self.root.after(len(sentences) * 5000, self._open_schedule)
+            holiday_text = f"，{holiday}快乐" if holiday else ""
+            extra = ""
+            if wd_idx == 4:
+                extra = "终于周五了，马上就可以休息了。"
+            elif wd_idx == 5:
+                extra = "今天是周六，加班辛苦啦。"
+            msg = f"主人，{greeting}呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}适当休息，祝主人开开心心，发财暴富，爱你呦！"
+            self.root.after(0, lambda: self._enqueue(msg))
 
         threading.Thread(target=_do, daemon=True).start()
 
@@ -1420,6 +1783,15 @@ class ScheduleWindow(tk.Toplevel):
         title_label.bind("<Button-1>", lambda e: _change_pet_name())
         tk.Label(bar, text="✏️", bg="#87CEEB", fg="#555", cursor="hand2",
                  font=("PingFang SC", 10)).pack(side="left")
+        # 同步到备忘录按钮
+        def _sync_notes():
+            if sync_to_notes(self.dm):
+                self._mb.showinfo("同步成功", "日程已同步到备忘录", parent=self)
+            else:
+                self._mb.showerror("同步失败", "请检查备忘录权限", parent=self)
+        tk.Button(bar, text="📋 同步", command=_sync_notes,
+                  bg="#87CEEB", fg="#444", font=("PingFang SC", 10),
+                  relief="flat", cursor="arrow").pack(side="left", padx=4)
         today = datetime.date.today()
         wds   = ["星期一","星期二","星期三","星期四","星期五","星期六","星期日"]
         tk.Label(bar, text=f"{today}  {wds[today.weekday()]}",
@@ -1777,7 +2149,7 @@ class ScheduleWindow(tk.Toplevel):
                 s["completed"] = not s.get("completed", False)
                 self.dm.save()
                 if s["completed"]:
-                    speak(f"主人真棒！「{s['title']}」完成啦！")
+                    speak(_completion_text(self.dm))
                 break
         self._refresh()
 

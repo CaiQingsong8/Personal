@@ -1,0 +1,265 @@
+{
+  "schedules": [
+    {
+      "id": 1779443504604,
+      "title": "1.净利润需求：填报表+科目取数",
+      "start_time": "09:00",
+      "duration": 200,
+      "date": "2026-05-22",
+      "alerted": false,
+      "completed": false,
+      "note": ""
+    },
+    {
+      "id": 1779443526918,
+      "title": "配方取数新逻辑",
+      "start_time": "14:00",
+      "duration": 200,
+      "date": "2026-05-22",
+      "alerted": false,
+      "completed": false,
+      "note": ""
+    },
+    {
+      "id": 1779443548118,
+      "title": "cg011bug",
+      "start_time": "13:00",
+      "duration": 200,
+      "date": "2026-05-22",
+      "alerted": false,
+      "completed": false,
+      "note": ""
+    },
+    {
+      "id": 1779510009121,
+      "title": "团队例会",
+      "start_time": "12:30",
+      "duration": 60,
+      "date": "2026-05-23",
+      "alerted": false,
+      "completed": false
+    },
+    {
+      "id": 1779513036787,
+      "title": "销售跟进电话",
+      "start_time": "13:30",
+      "duration": 60,
+      "date": "2026-05-23",
+      "alerted": true,
+      "completed": true
+    },
+    {
+      "id": 1779513043907,
+      "title": "新家长咨询接待",
+      "start_time": "14:30",
+      "duration": 60,
+      "date": "2026-05-23",
+      "alerted": true,
+      "completed": true
+    },
+    {
+      "id": 1779513058791,
+      "title": "课程体验安排",
+      "start_time": "15:30",
+      "duration": 60,
+      "date": "2026-05-23",
+      "alerted": true,
+      "completed": true
+    }
+  ],
+  "history": [
+    {
+      "title": "户外体能活动",
+      "start_time": "09:50",
+      "duration": 30,
+      "date": "2026-05-22"
+    },
+    {
+      "title": "亲子阅读/绘本分享",
+      "start_time": "15:00",
+      "duration": 25,
+      "date": "2026-05-22"
+    },
+    {
+      "title": "亲子阅读/绘本分享",
+      "start_time": "15:00",
+      "duration": 25,
+      "date": "2026-05-22"
+    },
+    {
+      "title": "放学整理与家长沟通",
+      "start_time": "16:30",
+      "duration": 30,
+      "date": "2026-05-22"
+    },
+    {
+      "title": "团队例会",
+      "start_time": "14:30",
+      "duration": 30,
+      "date": "2026-05-22"
+    },
+    {
+      "title": "排课与课表调整",
+      "start_time": "16:00",
+      "duration": 30,
+      "date": "2026-05-22"
+    },
+    {
+      "title": "我打字就会动",
+      "start_time": "14:30",
+      "duration": 30,
+      "date": "2026-05-22"
+    },
+    {
+      "title": "如果超过5分钟小猫会睡觉",
+      "start_time": "15:30",
+      "duration": 30,
+      "date": "2026-05-22"
+    },
+    {
+      "title": "超过5分钟就会睡觉",
+      "start_time": "15:00",
+      "duration": 30,
+      "date": "2026-05-22"
+    },
+    {
+      "title": "到事项时间也会提醒",
+      "start_time": "14:35",
+      "duration": 30,
+      "date": "2026-05-22"
+    },
+    {
+      "title": "排课与课表调整",
+      "start_time": "15:00",
+      "duration": 30,
+      "date": "2026-05-22"
+    },
+    {
+      "title": "家长满意度回访",
+      "start_time": "13:30",
+      "duration": 30,
+      "date": "2026-05-22"
+    },
+    {
+      "title": "1.净利润需求：填报表+科目取数",
+      "start_time": "09:00",
+      "duration": 200,
+      "date": "2026-05-22"
+    },
+    {
+      "title": "配方取数新逻辑",
+      "start_time": "13:00",
+      "duration": 200,
+      "date": "2026-05-22"
+    },
+    {
+      "title": "cg011bug",
+      "start_time": "13:00",
+      "duration": 200,
+      "date": "2026-05-22"
+    },
+    {
+      "title": "团队例会",
+      "start_time": "12:30",
+      "duration": 60,
+      "date": "2026-05-23"
+    },
+    {
+      "title": "销售跟进电话",
+      "start_time": "13:30",
+      "duration": 60,
+      "date": "2026-05-23"
+    },
+    {
+      "title": "新家长咨询接待",
+      "start_time": "14:30",
+      "duration": 60,
+      "date": "2026-05-23"
+    },
+    {
+      "title": "课程体验安排",
+      "start_time": "15:30",
+      "duration": 60,
+      "date": "2026-05-23"
+    }
+  ],
+  "notes": {
+    "2026-05-22": ""
+  },
+  "templates": [
+    {
+      "title": "家长接送沟通",
+      "start_time": "08:00",
+      "duration": 20
+    },
+    {
+      "title": "团队例会",
+      "start_time": "09:00",
+      "duration": 30
+    },
+    {
+      "title": "家长到访接待",
+      "start_time": "09:30",
+      "duration": 60
+    },
+    {
+      "title": "新家长咨询接待",
+      "start_time": "10:00",
+      "duration": 45
+    },
+    {
+      "title": "销售跟进电话",
+      "start_time": "11:00",
+      "duration": 30
+    },
+    {
+      "title": "家长满意度回访",
+      "start_time": "13:30",
+      "duration": 30
+    },
+    {
+      "title": "个案评估观察",
+      "start_time": "14:00",
+      "duration": 60
+    },
+    {
+      "title": "课程体验安排",
+      "start_time": "15:00",
+      "duration": 45
+    },
+    {
+      "title": "排课与课表调整",
+      "start_time": "16:00",
+      "duration": 30
+    },
+    {
+      "title": "家长接送沟通",
+      "start_time": "17:00",
+      "duration": 20
+    }
+  ],
+  "event_counts": {
+    "户外体能活动": 1,
+    "亲子阅读/绘本分享": 2,
+    "放学整理与家长沟通": 1,
+    "团队例会": 2,
+    "排课与课表调整": 2,
+    "我打字就会动": 1,
+    "如果超过5分钟小猫会睡觉": 1,
+    "超过5分钟就会睡觉": 1,
+    "到事项时间也会提醒": 1,
+    "家长满意度回访": 1,
+    "1.净利润需求：填报表+科目取数": 1,
+    "配方取数新逻辑": 1,
+    "cg011bug": 1,
+    "销售跟进电话": 1,
+    "新家长咨询接待": 1,
+    "课程体验安排": 1
+  },
+  "voice": {
+    "name": "Meijia",
+    "rate": 240,
+    "volume": 30
+  },
+  "pet_name": "小唐"
+}

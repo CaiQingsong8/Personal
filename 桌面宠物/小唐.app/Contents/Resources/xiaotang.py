@@ -815,7 +815,7 @@ class DataManager:
 
 # ══════ 同步到备忘录 ══════
 def sync_to_notes(dm):
-    """将当天日程写入macOS备忘录"""
+    """将当天日程写入macOS备忘录，每月一份笔记，每天只覆盖自己那天的内容"""
     try:
         today = datetime.date.today()
         today_str = today.isoformat()
@@ -823,22 +823,55 @@ def sync_to_notes(dm):
         pet_name = dm.data.get("pet_name", "小唐")
         note_name = f"{pet_name}{month_str}事项"
 
+        # 构建当天内容（用注释做标记，不受 Notes 格式化影响）
         items = [s for s in dm.data.get("schedules", []) if s.get("date") == today_str]
         items.sort(key=lambda x: x.get("start_time", "00:00"))
+        day_marker = f"<!--DAY:{today_str}-->"
         stars = "⭐️" * 10
-        html_parts = [f"<b>{stars} {today_str} {stars}</b>"]
+        today_parts = [day_marker, f"<b>{stars} {today_str} {stars}</b>"]
         for s in items:
             mark = "&#9989;" if s.get("completed") else "&#11093;"
-            html_parts.append(f"{mark} {s['start_time']} {s['title']} ({s['duration']}分钟)")
-        html_body = "<br/>".join(html_parts)
+            today_parts.append(f"{mark} {s['start_time']} {s['title']} ({s['duration']}分钟)")
+        today_html = "<br/>".join(today_parts)
+
+        tmp_new = Path.home() / ".xiaotang_note_new"
+
+        # 读取已有笔记，用 day_marker 定位并移除当天旧内容
+        read_script = f'''
+        tell application "Notes"
+            try
+                set theNote to first note whose name is "{note_name}"
+                return body of theNote
+            on error
+                return ""
+            end try
+        end tell
+        '''
+        r = subprocess.run(["osascript", "-e", read_script], capture_output=True, text=True, timeout=10)
+        old_body = r.stdout.strip() if r.returncode == 0 and r.stdout else ""
+
+        if old_body and day_marker in old_body:
+            # 移除当天旧块：从 day_marker 到下一个 day_marker（或末尾）
+            idx = old_body.find(day_marker)
+            rest = old_body[idx + len(day_marker):]
+            next_idx = rest.find("<!--DAY:")
+            if next_idx >= 0:
+                old_body = old_body[:idx] + rest[next_idx:]
+            else:
+                old_body = old_body[:idx]
+            html_body = today_html + old_body
+        elif old_body:
+            html_body = today_html + old_body
+        else:
+            html_body = today_html
+
         html_full = f"<html><body style='font-family:Helvetica;font-size:13px'>{html_body}</body></html>"
 
-        tmp = Path.home() / ".xiaotang_note_tmp"
-        tmp.write_text(html_full, encoding="utf-8")
-        script = f'''
+        tmp_new.write_text(html_full, encoding="utf-8")
+        write_script = f'''
         tell application "Notes"
             set noteName to "{note_name}"
-            set noteHtml to (do shell script "cat {tmp}")
+            set noteHtml to (do shell script "cat {tmp_new}")
             try
                 set theNote to first note whose name is noteName
                 set body of theNote to noteHtml
@@ -847,8 +880,8 @@ def sync_to_notes(dm):
             end try
         end tell
         '''
-        subprocess.run(["osascript", "-e", script], capture_output=True, timeout=10)
-        tmp.unlink(missing_ok=True)
+        subprocess.run(["osascript", "-e", write_script], capture_output=True, timeout=10)
+        tmp_new.unlink(missing_ok=True)
         return True
     except Exception as e:
         log(f"同步备忘录失败: {e}")

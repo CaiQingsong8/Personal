@@ -37,7 +37,7 @@
       "duration": 60,
       "date": "2026-05-23",
       "alerted": false,
-      "completed": false
+      "completed": true
     },
     {
       "id": 1779513036787,
@@ -65,6 +65,24 @@
       "date": "2026-05-23",
       "alerted": true,
       "completed": true
+    },
+    {
+      "id": 1779550415888,
+      "title": "团队例会",
+      "start_time": "00:00",
+      "duration": 60,
+      "date": "2026-05-23",
+      "alerted": false,
+      "completed": true
+    },
+    {
+      "id": 1779552276003,
+      "title": "团队例会",
+      "start_time": "08:30",
+      "duration": 60,
+      "date": "2026-05-24",
+      "alerted": false,
+      "completed": false
     }
   ],
   "history": [
@@ -181,6 +199,18 @@
       "start_time": "15:30",
       "duration": 60,
       "date": "2026-05-23"
+    },
+    {
+      "title": "团队例会",
+      "start_time": "00:00",
+      "duration": 60,
+      "date": "2026-05-23"
+    },
+    {
+      "title": "团队例会",
+      "start_time": "08:30",
+      "duration": 60,
+      "date": "2026-05-24"
     }
   ],
   "notes": {
@@ -242,7 +272,7 @@
     "户外体能活动": 1,
     "亲子阅读/绘本分享": 2,
     "放学整理与家长沟通": 1,
-    "团队例会": 2,
+    "团队例会": 4,
     "排课与课表调整": 2,
     "我打字就会动": 1,
     "如果超过5分钟小猫会睡觉": 1,
@@ -257,7 +287,7 @@
     "课程体验安排": 1
   },
   "voice": {
-    "name": "Meijia",
+    "name": "云希",
     "rate": 240,
     "volume": 30
   },

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-小唐桌面宠物 v7.0
+小唐桌面宠物 v5.0.0
 兼容：macOS Ventura 13+ / Python 3.9+ / pyobjc 8.x+
 核心策略：
   - 所有 AppKit API 调用全部 try-except 隔离，单点失败不崩溃
@@ -16,8 +16,16 @@
 
 import tkinter as tk
 from tkinter import ttk
-import threading, time, datetime, subprocess, sys, os, json, re, random
+import threading, time, datetime, subprocess, sys, os, json, re, random, hashlib
 from pathlib import Path
+
+# 内嵌依赖（pylib/ 目录）
+_PYLIB = Path(__file__).parent / "pylib"
+if _PYLIB.exists():
+    sys.path.insert(0, str(_PYLIB))
+
+import asyncio
+import edge_tts
 from PIL import Image
 
 BASE_DIR  = Path(__file__).parent
@@ -311,13 +319,53 @@ def _translate_weather(text):
     return text
 
 # ══════ 语音 ══════
-_say_proc = None  # 上一个 say 进程，用于避免重叠
-_voice_name = "Meijia"
+_say_proc = None  # 上一个语音进程，防止重叠
+
+# 默认人声
+_DEFAULT_VOICE = "云希"
+
+_voice_name = _DEFAULT_VOICE
 _voice_rate = 240
 _voice_volume = 60
 
+# edge-tts 中文人声映射（友好名 → 接口名）
+EDGE_VOICES = {
+    "晓晓": "zh-CN-XiaoxiaoNeural",
+    "晓伊": "zh-CN-XiaoyiNeural",
+    "云希": "zh-CN-YunxiNeural",
+    "云剑": "zh-CN-YunjianNeural",
+    "云夏": "zh-CN-YunxiaNeural",
+    "云扬": "zh-CN-YunyangNeural",
+}
+
+# 语气助词，随机添加到句尾让语音更亲切
+_EMO_PARTICLES = ["呀", "哦", "呢", "啦", "哟", "嘛"]
+
+# TTS 缓存目录（避免重复生成）
+_TTS_CACHE_DIR = Path("/tmp/.xiaotang_tts_cache")
+_TTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+def _tts_cache_path(text, voice, rate):
+    """基于文本+语音+语速生成缓存路径"""
+    key = f"{text}|{voice}|{rate}"
+    h = hashlib.md5(key.encode()).hexdigest()
+    return _TTS_CACHE_DIR / f"{h}.mp3"
+
+def _add_particles(text):
+    """在句尾加语气助词，基于文本哈希决定，保证缓存稳定"""
+    h = hashlib.md5(text.encode()).hexdigest()
+    if int(h[:8], 16) % 100 >= 35:
+        return text
+    p = _EMO_PARTICLES[int(h[8:16], 16) % len(_EMO_PARTICLES)]
+    idx = text.rfind("！")
+    if idx >= 0 and text[idx-1] not in _EMO_PARTICLES:
+        text = text[:idx] + p + text[idx:]
+    elif not text.endswith(tuple(_EMO_PARTICLES)):
+        text = text + p
+    return text
+
 def speak(text):
-    # 去除 emoji，保留中英文和标点
+    # 去除 emoji
     clean = re.sub(
         r'[\U00010000-\U0010ffff\U00002702-\U000027B0'
         r'\U0001f000-\U0001faff\U00002600-\U000026ff]',
@@ -326,29 +374,75 @@ def speak(text):
         return
     # 去除特殊符号
     clean = re.sub(r'[~～♡♥♪♫❤★☆✨💕🌸]', '', clean)
-    # 添加停顿：在标点后加逗号，让语音更自然
+    # 添加语气助词
+    clean = _add_particles(clean)
+    # 添加停顿
     clean = re.sub(r'([。！？])', r'，', clean)
     global _say_proc
     if _voice_volume == 0:
-        return  # 静音模式，不播放
+        return
     try:
         if _say_proc and _say_proc.poll() is None:
             _say_proc.kill()
     except:
         pass
     try:
-        # 设置系统音量
-        subprocess.Popen(["osascript", "-e", f"set volume output volume {_voice_volume}"],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        # 播报
+        voice = EDGE_VOICES.get(_voice_name, "zh-CN-YunxiNeural")
+        rate_pct = int((_voice_rate - 240) / 240 * 100)
+        rate_str = f"{rate_pct:+d}%"
+        cache_path = _tts_cache_path(clean, voice, rate_str)
+
+        if not cache_path.exists():
+            # 未缓存 → 尝试生成 edge-tts，超时 2 秒则静默跳过
+            done = []
+            def _sync_gen():
+                try:
+                    async def _do():
+                        tts = edge_tts.Communicate(clean, voice=voice, rate=rate_str)
+                        await tts.save(str(cache_path))
+                    asyncio.run(_do())
+                    done.append(True)
+                except:
+                    pass
+            t = threading.Thread(target=_sync_gen, daemon=True)
+            t.start()
+            t.join(timeout=2)
+            if not done:
+                return  # 超时，静默跳过本次语音
+
+        # 缓存命中（或刚刚生成）→ 直接播高质量语音
         _say_proc = subprocess.Popen(
-            ["say", "-v", _voice_name, "-r", str(_voice_rate), clean],
+            ["afplay", str(cache_path)],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except:
         pass
 
+# macOS 系统音效映射（保证每台 Mac 都有）
+_SFX_MAP = {
+    "start":    "/System/Library/Sounds/Bottle.aiff",
+    "complete": "/System/Library/Sounds/Glass.aiff",
+    "cancel":   "/System/Library/Sounds/Pop.aiff",
+    "open":     "/System/Library/Sounds/Bottle.aiff",
+    "save":     "/System/Library/Sounds/Tink.aiff",
+    "add":      "/System/Library/Sounds/Pop.aiff",
+    "glass":    "/System/Library/Sounds/Glass.aiff",
+    "hero":     "/System/Library/Sounds/Hero.aiff",
+    "bottle":   "/System/Library/Sounds/Bottle.aiff",
+    "funk":     "/System/Library/Sounds/Funk.aiff",
+    "greet":    "/System/Library/Sounds/Bottle.aiff",
+    "purr":     "/System/Library/Sounds/Purr.aiff",
+}
+
+def _play_sfx(name):
+    """播放系统音效（异步，不阻塞）"""
+    path = _SFX_MAP.get(name)
+    if path:
+        threading.Thread(target=lambda: subprocess.run(
+            ["afplay", str(path)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL),
+            daemon=True).start()
+
 # ══════ 气泡（动态适配 + 语音同步）══════
-_say_proc = None  # 上一个 say 进程
 
 class BubblePanel:
     def __init__(self, cat_win, tk_root):
@@ -516,128 +610,128 @@ DEFAULT_TEMPLATES = [
 
 # ══════ 打招呼随机语 ══════
 _GREETING_PRAISE = [
-    "主人今天状态真好，神采飞扬！",
-    "主人今天漂亮又干练，太棒了！",
-    "主人今天的穿搭很有品味！",
-    "主人今天精神饱满，充满活力！",
-    "主人笑容很温暖，看了就让人开心！",
-    "主人今天格外有魅力！",
-    "主人今天看起来很厉害的样子！",
-    "主人今天心情不错，我也开心！",
-    "主人今天气色真好，容光焕发！",
-    "主人今天就是全场的焦点！",
-    "主人今天优雅大方，气质出众！",
-    "主人举手投足间都散发着自信！",
-    "主人今天的状态让人眼前一亮！",
-    "主人今天的发型很适合你！",
-    "主人今天说话的语气特别温柔！",
-    "主人今天做事特别利落！",
-    "主人今天认真工作的样子很迷人！",
-    "主人今天的笑容特别灿烂！",
-    "主人非常聪明又有才华！",
-    "主人总是能给人带来惊喜！",
-    "主人的品味一直都很在线！",
-    "主人今天红光满面，气色好极了！",
-    "主人今天的妆容精致又自然！",
-    "主人今天的眼神特别有神采！",
-    "主人今天气场强大，镇得住场！",
-    "主人总是能把事情处理得井井有条！",
-    "主人的想法总是很有创意！",
-    "主人今天看起来心情特别好！",
-    "主人今天的举止特别优雅！",
-    "主人身上有一种独特的魅力！",
-    "主人今天格外耀眼夺目！",
-    "主人总是那么温柔体贴！",
-    "主人今天的表现特别出色！",
-    "主人天生就是做大事的人！",
-    "主人有一种让人安心的力量！",
-    "主人今天格外美丽动人！",
+    "今天状态真好，神采飞扬！",
+    "今天漂亮又干练，太棒了！",
+    "今天的穿搭很有品味！",
+    "今天精神饱满，充满活力！",
+    "笑容很温暖，看了就让人开心！",
+    "今天格外有魅力！",
+    "今天看起来很厉害的样子！",
+    "今天心情不错，我也开心！",
+    "今天气色真好，容光焕发！",
+    "今天就是全场的焦点！",
+    "今天优雅大方，气质出众！",
+    "举手投足间都散发着自信！",
+    "今天的状态让人眼前一亮！",
+    "今天的发型很适合你！",
+    "今天说话的语气特别温柔！",
+    "今天做事特别利落！",
+    "今天认真工作的样子很迷人！",
+    "今天的笑容特别灿烂！",
+    "非常聪明又有才华！",
+    "总是能给人带来惊喜！",
+    "品味一直都很在线！",
+    "今天红光满面，气色好极了！",
+    "今天的妆容精致又自然！",
+    "今天的眼神特别有神采！",
+    "今天气场强大，镇得住场！",
+    "总是能把事情处理得井井有条！",
+    "想法总是很有创意！",
+    "今天看起来心情特别好！",
+    "今天的举止特别优雅！",
+    "身上有一种独特的魅力！",
+    "今天格外耀眼夺目！",
+    "总是那么温柔体贴！",
+    "今天的表现特别出色！",
+    "天生就是做大事的人！",
+    "有一种让人安心的力量！",
+    "今天格外美丽动人！",
 ]
 _GREETING_ENCOURAGE = [
-    "主人加油，你是最棒的！",
-    "主人一定行，没有什么可以难倒你！",
-    "主人坚持下去，胜利就在前方！",
-    "主人今天也要元气满满！",
-    "主人不要怕，大胆去做，我支持你！",
-    "主人每一步都在进步，很棒！",
-    "主人今天的工作一定顺顺利利！",
-    "主人相信你自己，你可以的！",
-    "主人今天也要全力以赴！",
-    "主人不管做什么都会成功的！",
-    "主人，今天也要加油努力！",
-    "主人，困难只是暂时的！",
-    "主人，你有无限的潜力！",
-    "主人，勇敢追求自己想要的一切！",
-    "主人，你是自己人生的主角！",
-    "主人，不要给自己太大压力！",
-    "主人，放轻松，一切都会好起来的！",
-    "主人，你比你想象中更强大！",
-    "主人，每一次尝试都是成长！",
-    "主人，好运气正在向你赶来！",
-    "主人，努力的人运气不会太差！",
-    "主人，再坚持一下就能看到曙光！",
-    "主人，你可以成为任何你想成为的人！",
-    "主人，别着急，好的都在后面！",
-    "主人，相信过程，结果自然不会差！",
-    "主人，你已经做得很好了！",
-    "主人，保持积极的心态最重要！",
-    "主人，慢慢来，不用急！",
-    "主人，你的努力一定会被看见！",
-    "主人，今天也要开开心心的！",
-    "主人，深呼吸，一切都会顺利的！",
-    "主人，未来可期，加油！",
-    "主人，今天也是充满希望的一天！",
-    "主人，朝着目标前进吧！",
-    "主人，每天进步一点点就是成功！",
-    "主人，幸福就在努力的路上！",
+    "加油，你是最棒的！",
+    "一定行，没有什么可以难倒你！",
+    "坚持下去，胜利就在前方！",
+    "今天也要元气满满！",
+    "不要怕，大胆去做，我支持你！",
+    "每一步都在进步，很棒！",
+    "今天的工作一定顺顺利利！",
+    "相信自己，你可以的！",
+    "今天也要全力以赴！",
+    "不管做什么都会成功的！",
+    "今天也要加油努力！",
+    "困难只是暂时的！",
+    "你有无限的潜力！",
+    "勇敢追求自己想要的一切！",
+    "你是自己人生的主角！",
+    "不要给自己太大压力！",
+    "放轻松，一切都会好起来的！",
+    "你比你想象中更强大！",
+    "每一次尝试都是成长！",
+    "好运气正在向你赶来！",
+    "努力的人运气不会太差！",
+    "再坚持一下就能看到曙光！",
+    "你可以成为任何你想成为的人！",
+    "别着急，好的都在后面！",
+    "相信过程，结果自然不会差！",
+    "你已经做得很好了！",
+    "保持积极的心态最重要！",
+    "慢慢来，不用急！",
+    "你的努力一定会被看见！",
+    "今天也要开开心心的！",
+    "深呼吸，一切都会顺利的！",
+    "未来可期，加油！",
+    "今天也是充满希望的一天！",
+    "朝着目标前进吧！",
+    "每天进步一点点就是成功！",
+    "幸福就在努力的路上！",
 ]
 _GREETING_BLESS = [
-    "祝主人今天万事如意，心想事成！",
-    "祝主人身体健康，百病不侵！",
-    "祝主人开心每一天，笑容常在！",
-    "祝主人财源广进，钱包鼓鼓！",
-    "祝主人工作顺利，步步高升！",
-    "祝主人好运连连，惊喜不断！",
-    "祝主人天天好心情，事事都顺心！",
-    "祝主人吃好喝好，长生不老！",
-    "祝主人一路平安，诸事顺遂！",
-    "祝主人幸福快乐，永远被爱！",
-    "祝主人今天收获满满！",
-    "祝主人遇到的都是好事！",
-    "祝主人梦想成真，前程似锦！",
-    "祝主人今天也有好运气！",
-    "祝主人烦恼全部消失！",
-    "祝主人每天都能睡个好觉！",
-    "祝主人胃口好，吃饭香！",
-    "祝主人越来越年轻漂亮！",
-    "祝主人每天都充满阳光和能量！",
-    "祝主人笑口常开，烦恼走开！",
-    "祝主人邂逅美好的事物！",
-    "祝主人生活美满，家庭幸福！",
-    "祝主人天天都有小惊喜！",
-    "祝主人顺利度过每一个难关！",
-    "祝主人身边都是温暖的人！",
-    "祝主人未来的路越走越宽！",
-    "祝主人平安喜乐，岁月静好！",
-    "祝主人好事成双，快乐加倍！",
-    "祝主人每一天都比昨天更好！",
-    "祝主人被世界温柔以待！",
-    "祝主人事业蒸蒸日上！",
-    "祝主人想要的都拥有！",
-    "祝主人健康平安，一生顺遂！",
-    "祝主人永远保持好心情！",
-    "祝主人今天也有小确幸！",
-    "祝主人一切安好，幸福常伴！",
+    "祝今天万事如意，心想事成！",
+    "祝身体健康，百病不侵！",
+    "祝开心每一天，笑容常在！",
+    "祝财源广进，钱包鼓鼓！",
+    "祝工作顺利，步步高升！",
+    "祝好运连连，惊喜不断！",
+    "祝天天好心情，事事都顺心！",
+    "祝吃好喝好，长生不老！",
+    "祝一路平安，诸事顺遂！",
+    "祝幸福快乐，永远被爱！",
+    "祝今天收获满满！",
+    "祝遇到的都是好事！",
+    "祝梦想成真，前程似锦！",
+    "祝今天也有好运气！",
+    "祝烦恼全部消失！",
+    "祝每天都能睡个好觉！",
+    "祝胃口好，吃饭香！",
+    "祝越来越年轻漂亮！",
+    "祝每天都充满阳光和能量！",
+    "祝笑口常开，烦恼走开！",
+    "祝邂逅美好的事物！",
+    "祝生活美满，家庭幸福！",
+    "祝天天都有小惊喜！",
+    "祝顺利度过每一个难关！",
+    "祝身边都是温暖的人！",
+    "祝未来的路越走越宽！",
+    "祝平安喜乐，岁月静好！",
+    "祝好事成双，快乐加倍！",
+    "祝每一天都比昨天更好！",
+    "祝被世界温柔以待！",
+    "祝事业蒸蒸日上！",
+    "祝想要的都拥有！",
+    "祝健康平安，一生顺遂！",
+    "祝永远保持好心情！",
+    "祝今天也有小确幸！",
+    "祝一切安好，幸福常伴！",
 ]
 _GREETING_HAPPY = [
     "今天也是美好的一天！",
-    "和主人在一起的每一天都很开心！",
-    "今天天气不错，主人心情也要美美的！",
-    "主人今天有没有什么开心的事分享呀？",
-    "每次见到主人都特别开心！",
+    "和你在一起的每一天都很开心！",
+    "今天天气不错，心情也要美美的！",
+    "今天有没有什么开心的事分享呀？",
+    "每次见到你都特别开心！",
     "今天也是元气满满的一天呢！",
-    "希望主人的每一天都充满阳光！",
-    "主人开心我就开心，所以要开心哦！",
+    "希望每一天都充满阳光！",
+    "你开心我就开心，所以要开心哦！",
     "今天也要微笑面对一切！",
     "日子过得真快，珍惜每一天！",
     "今天又是崭新的一天！",
@@ -674,7 +768,7 @@ class DataManager:
             "schedules": [], "history": [], "notes": {},
             "templates": [t.copy() for t in DEFAULT_TEMPLATES],
             "event_counts": {},
-            "voice": {"name": "Meijia", "rate": 240, "volume": 60},
+            "voice": {"name": _DEFAULT_VOICE, "rate": 240, "volume": 60},
             "pet_name": "小唐",
         }
         self._load()
@@ -682,7 +776,7 @@ class DataManager:
         self.data["templates"] = [t.copy() for t in DEFAULT_TEMPLATES]
         # 确保语音设置存在
         if "voice" not in self.data:
-            self.data["voice"] = {"name": "Meijia", "rate": 240, "volume": 60}
+            self.data["voice"] = {"name": _DEFAULT_VOICE, "rate": 240, "volume": 60}
         if "pet_name" not in self.data:
             self.data["pet_name"] = "小唐"
 
@@ -699,7 +793,7 @@ class DataManager:
     def _sync_voice(self):
         global _voice_name, _voice_rate, _voice_volume
         v = self.data.get("voice", {})
-        _voice_name = v.get("name", "Meijia")
+        _voice_name = v.get("name", _DEFAULT_VOICE)
         _voice_rate = v.get("rate", 240)
         _voice_volume = v.get("volume", 60)
 
@@ -823,20 +917,21 @@ def sync_to_notes(dm):
         pet_name = dm.data.get("pet_name", "小唐")
         note_name = f"{pet_name}{month_str}事项"
 
-        # 构建当天内容（用注释做标记，不受 Notes 格式化影响）
+        # 构建当天内容（用可见标记，Apple Notes 不会保留 HTML 注释）
         items = [s for s in dm.data.get("schedules", []) if s.get("date") == today_str]
         items.sort(key=lambda x: x.get("start_time", "00:00"))
-        day_marker = f"<!--DAY:{today_str}-->"
-        stars = "⭐️" * 10
-        today_parts = [day_marker, f"<b>{stars} {today_str} {stars}</b>"]
+        sep = "═" * 30
+        day_marker = f"📅 {today_str} 📅"
+        today_parts = [f"<b>{sep}</b>", f"<b>{day_marker}</b>"]
         for s in items:
             mark = "&#9989;" if s.get("completed") else "&#11093;"
             today_parts.append(f"{mark} {s['start_time']} {s['title']} ({s['duration']}分钟)")
+        today_parts.append(f"<b>{sep}</b>")
         today_html = "<br/>".join(today_parts)
 
         tmp_new = Path.home() / ".xiaotang_note_new"
 
-        # 读取已有笔记，用 day_marker 定位并移除当天旧内容
+        # 读取已有笔记，用可见标记定位并移除当天旧内容
         read_script = f'''
         tell application "Notes"
             try
@@ -854,7 +949,7 @@ def sync_to_notes(dm):
             # 移除当天旧块：从 day_marker 到下一个 day_marker（或末尾）
             idx = old_body.find(day_marker)
             rest = old_body[idx + len(day_marker):]
-            next_idx = rest.find("<!--DAY:")
+            next_idx = rest.find("📅 ")
             if next_idx >= 0:
                 old_body = old_body[:idx] + rest[next_idx:]
             else:
@@ -893,20 +988,20 @@ def _completion_text(dm):
     today = datetime.date.today().isoformat()
     items = [s for s in dm.data.get("schedules", []) if s.get("date") == today]
     if not items:
-        return "主人真厉害！"
+        return "真厉害！"
     done_count = sum(1 for s in items if s.get("completed"))
     total = len(items)
     if done_count == total:
         return "全部完成，收工！"
     if done_count == 1:
         return "今日首项已完成！"
-    return "主人真厉害！"
+    return "真厉害！"
 
 # ══════ 主程序 ══════
 class XiaoTang:
     SIZE = 192
     FIXED_REMINDERS = [
-        ("10:00", "主人，记得喝水休息一下哦~ 💧"),
+        ("10:00", "记得喝水休息一下哦~ 💧"),
         ("12:00", "下班休息喽！记得吃午餐哟！🍱"),
         ("13:55", "快起床清醒一下，下午又是元气满满的开始！"),
         ("15:30", "记得喝水休息，站起来活动活动~ 🧘"),
@@ -914,12 +1009,12 @@ class XiaoTang:
         ("18:00", "又是完美的一天，收工回家喽！🎉"),
     ]
     IDLE_QUOTES = [
-        "主人在认真工作呢~ 🌟",
+        "在认真工作呢~ 🌟",
         "有什么需要帮忙的吗？",
         "今天辛苦啦，多喝水哦！",
-        "我最喜欢主人了 💕",
+        "最喜欢你了 💕",
         "要不要休息一下眼睛呀？",
-        "加油加油！主人最棒了！✨",
+        "加油加油！最棒了！✨",
         "时间过得好快，注意休息哟~",
     ]
     def __init__(self):
@@ -941,6 +1036,7 @@ class XiaoTang:
         self._schedule_end_timers = {}  # {item_id: timer_id} 跟踪日程结束时间
         self._pending_done_question = None  # 待回答的"做完了？"问题标题
         self._pending_done_item_id = None   # 对应的日程 ID
+        self._attention_until = 0            # 注意力动画截止时间戳
         self.ACTIVE_TIMEOUT  = 1
         self.SLEEP_TIMEOUT   = 300
         self.dm              = DataManager()
@@ -959,6 +1055,7 @@ class XiaoTang:
         threading.Thread(target=self._reminder_loop,    daemon=True).start()
         threading.Thread(target=self._random_chat_loop, daemon=True).start()
         threading.Thread(target=self._auto_sync_loop,   daemon=True).start()
+        threading.Thread(target=self._precache_tts,    daemon=True).start()
 
         self.root.after(500,  self._update_state)
         self.root.after(500,  self._poll_clicks)
@@ -1039,6 +1136,7 @@ class XiaoTang:
                     action = self._win._menu_actions[tag]
                     if callable(action):
                         try:
+                            self._flash_attention()
                             action()
                         except Exception as e:
                             log(f"菜单动作错误: {e}")
@@ -1111,7 +1209,7 @@ class XiaoTang:
                         extra = "终于周五了，马上就可以休息了。"
                     elif now.weekday() == 5:
                         extra = "今天是周六，加班辛苦啦。"
-                    msg = f"主人，{time_word}好呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}适当休息，祝主人开开心心，发财暴富，爱你呦！"
+                    msg = f"{time_word}好呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}适当休息，祝开开心心，发财暴富，爱你呦！"
                     self._enqueue(msg)
                 rows.append(("💬 打招呼", _greeting))
 
@@ -1123,7 +1221,7 @@ class XiaoTang:
 
             # 语音设置（固定在第2个位置，tag=1）
             v = self.dm.data.get("voice", {})
-            vn = v.get("name", "Meijia")
+            vn = v.get("name", _DEFAULT_VOICE)
             spd = v.get("rate", 240)
             vol = v.get("volume", 60)
             spd_vals = {"慢":150,"中":210,"中快":240,"快":270,"极快":300}
@@ -1176,8 +1274,8 @@ class XiaoTang:
                 tk.Label(f1, text="人声", bg="#151515", fg="#aaa",
                          font=("PingFang SC", 10)).pack(side="left")
                 cb_voice = ttk.Combobox(f1, textvariable=v_voice,
-                    values=["Meijia","Ting-Ting","Sandy","Shelley","Flo"],
-                    width=12, state="readonly")
+                    values=list(EDGE_VOICES.keys()),
+                    width=8, state="readonly")
                 cb_voice.pack(side="left", padx=4)
                 # 语速
                 v_spd = tk.StringVar()
@@ -1226,6 +1324,7 @@ class XiaoTang:
                         it["completed"] = not it.get("completed", False)
                         self.dm.save()
                         if it["completed"]:
+                            _play_sfx("complete")
                             speak(_completion_text(self.dm))
                     rows.append((label, _toggle))
                 # 已完成折叠
@@ -1243,6 +1342,7 @@ class XiaoTang:
                             def _untoggle(it=it):
                                 it["completed"] = False
                                 self.dm.save()
+                                _play_sfx("cancel")
                             rows.append((label, _untoggle))
 
             rows.append(("📅 打开日程本", self._open_schedule))
@@ -1261,9 +1361,11 @@ class XiaoTang:
 
                 if text == "c4":
                     # 特殊行：四个板块（夸夸·鼓励·祝福·开心）一行展示
-                    cats = [("❤️夸夸", _GREETING_PRAISE), ("鼓励", _GREETING_ENCOURAGE),
-                            ("祝福", _GREETING_BLESS), ("开心", _GREETING_HAPPY)]
-                    cat_text = "  ".join([c[0] for c in cats])
+                    cats = [(_GREETING_PRAISE, "glass"),
+                            (_GREETING_ENCOURAGE, "glass"),
+                            (_GREETING_BLESS, "glass"),
+                            (_GREETING_HAPPY, "glass")]
+                    cat_text = "❤️夸夸  鼓励  祝福  开心🎉"
                     lbl = AppKit.NSTextField.labelWithString_(cat_text)
                     lbl.setFrame_(AppKit.NSMakeRect(14, y + 6, 192, 20))
                     lbl.setFont_(AppKit.NSFont.boldSystemFontOfSize_(12))
@@ -1272,8 +1374,15 @@ class XiaoTang:
                     cv.addSubview_(lbl)
                     # 4个独立点击覆盖
                     seg_w = 48
-                    for ci, (cn, cl) in enumerate(cats):
-                        def _cat_f(cl=cl):
+                    for ci, (cl, sfx) in enumerate(cats):
+                        def _cat_f(cl=cl, sfx=sfx):
+                            _play_sfx(sfx)
+                            # 四个板块统一用 thinking.gif 持续 3 秒
+                            if "thinking" in self._frames:
+                                self._attention_until = time.time() + 3
+                                self._state = "thinking"
+                                self._anim_state = "thinking"
+                                self._frame_idx = 0
                             self._enqueue(random.choice(cl))
                         btn = AppKit.NSButton.alloc().initWithFrame_(
                             AppKit.NSMakeRect(14 + ci * seg_w, y, seg_w, row_h))
@@ -1416,6 +1525,7 @@ class XiaoTang:
             ("working",  "working.gif"),
             ("sleeping", "sleeping.gif"),
             ("thinking", "thinking.gif"),
+            ("attention", "attention.gif"),
         ]:
             p = ASSET_DIR / fname
             if not p.exists():
@@ -1539,10 +1649,24 @@ except Exception as e:
         except Exception as e:
             log(f"键盘监听子进程启动失败: {e}")
 
+    def _flash_attention(self):
+        """播放注意力动画，持续 3 秒后平滑过渡到常规动画"""
+        if "attention" not in self._frames or self._state == "attention":
+            return
+        self._last_activity = time.time()
+        self._last_event_t = time.time()
+        self._attention_until = time.time() + 3
+        self._state = "attention"
+        self._anim_state = "attention"
+        self._frame_idx = 0
+
     # ─── 状态更新 ──────────────────────────
     def _update_state(self):
         try:
             now = time.time()
+            if now < self._attention_until:
+                self.root.after(500, self._update_state)
+                return
             idle_sec = now - self._last_activity
             if idle_sec >= self.SLEEP_TIMEOUT:
                 self._screen_on = False
@@ -1608,7 +1732,8 @@ except Exception as e:
                         if ts == item["start_time"] and key not in self._fired_schedules:
                             self._fired_schedules.add(key)
                             self.dm.mark_alerted(item["id"])
-                            msg = f"主人，我们开始下一件行程吧！「{item['title']}」⏰"
+                            _play_sfx("start")
+                            msg = f"我们开始下一件行程吧！「{item['title']}」⏰"
                             events_to_fire.append(msg)
                             # 注册结束提醒
                             self._schedule_end_timers[item["id"]] = {
@@ -1661,10 +1786,48 @@ except Exception as e:
                 if (self._screen_on and
                         self._state == "idle"):
                     msg = random.choice(self.IDLE_QUOTES)
+                    # 先闪烁思考动画
+                    if "thinking" in self._frames:
+                        self._attention_until = time.time() + 1.2
+                        self._state = "thinking"
+                        self._anim_state = "thinking"
+                        self._frame_idx = 0
+                        time.sleep(1.2)
                     self.root.after(0, lambda m=msg: self._enqueue(m, do_speak=False))
             except Exception as e:
                 log(f"random_chat: {e}")
                 time.sleep(60)
+
+    # ─── TTS 预缓存（启动时预生成所有招呼/祝福语句，彻底消除首次卡顿）──
+    def _precache_tts(self):
+        try:
+            voice = EDGE_VOICES.get(_voice_name, "zh-CN-YunxiNeural")
+            rate_pct = int((_voice_rate - 240) / 240 * 100)
+            rate_str = f"{rate_pct:+d}%"
+            all_texts = (
+                _GREETING_PRAISE + _GREETING_ENCOURAGE
+                + _GREETING_BLESS + _GREETING_HAPPY
+            )
+            todo = [t for t in all_texts
+                    if not _tts_cache_path(t, voice, rate_str).exists()]
+            if not todo:
+                log(f"TTS 缓存已就绪（{len(all_texts)} 条）")
+                return
+            log(f"开始预缓存 {len(todo)} 条 TTS（并发 4 条）")
+            async def _precache_all():
+                sem = asyncio.Semaphore(4)
+                async def _gen(text):
+                    async with sem:
+                        cp = _tts_cache_path(text, voice, rate_str)
+                        if not cp.exists():
+                            tts = edge_tts.Communicate(
+                                text, voice=voice, rate=rate_str)
+                            await tts.save(str(cp))
+                await asyncio.gather(*[_gen(t) for t in todo])
+            asyncio.run(_precache_all())
+            log(f"TTS 预缓存完成（{len(todo)} 条）")
+        except Exception as e:
+            log(f"TTS 预缓存异常: {e}")
 
     # ─── 自动同步（每天18:00触发）──
     def _auto_sync_loop(self):
@@ -1685,6 +1848,12 @@ except Exception as e:
         if hasattr(self, '_greeting_done'):
             return
         self._greeting_done = True
+        # 先播思考动画 3s，再播报问候
+        if "thinking" in self._frames:
+            self._attention_until = time.time() + 3.0
+            self._state = "thinking"
+            self._anim_state = "thinking"
+            self._frame_idx = 0
         now = datetime.datetime.now()
         h   = now.hour
         greeting = ("早上好" if 5 <= h < 12 else
@@ -1708,10 +1877,15 @@ except Exception as e:
                 extra = "终于周五了，马上就可以休息了。"
             elif wd_idx == 5:
                 extra = "今天是周六，加班辛苦啦。"
-            msg = f"主人，{greeting}呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}适当休息，祝主人开开心心，发财暴富，爱你呦！"
+            msg = f"{greeting}呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}适当休息，祝开开心心，发财暴富，爱你呦！"
             self.root.after(0, lambda: self._enqueue(msg))
 
-        threading.Thread(target=_do, daemon=True).start()
+        # 延迟 3s 让思考动画先播放
+        def _delayed():
+            if "thinking" in self._frames:
+                time.sleep(3.0)
+            _do()
+        threading.Thread(target=_delayed, daemon=True).start()
 
     # ─── 开机自启 ──────────────────────────
     def _register_autostart(self):
@@ -1745,6 +1919,7 @@ except Exception as e:
     _schedule_win = None  # 日程窗口单例
 
     def _open_schedule(self):
+        _play_sfx("open")
         # 如果已有窗口打开，直接置顶
         if self._schedule_win:
             try:
@@ -1820,6 +1995,7 @@ class ScheduleWindow(tk.Toplevel):
         # 同步到备忘录按钮
         def _sync_notes():
             if sync_to_notes(self.dm):
+                _play_sfx("save")
                 self._mb.showinfo("同步成功", "日程已同步到备忘录", parent=self)
             else:
                 self._mb.showerror("同步失败", "请检查备忘录权限", parent=self)
@@ -2061,11 +2237,13 @@ class ScheduleWindow(tk.Toplevel):
         next_h, next_m = divmod(end_total % 1440, 60)
         self.v_hour.set(f"{next_h:02d}")
         self.v_min.set(f"{next_m:02d}")
+        _play_sfx("add")
         # 更新下拉列表
         self._title_combo["values"] = [t["title"] for t in self.dm.data.get("templates", [])]
         self._refresh()
 
     def _save_close(self):
+        _play_sfx("save")
         self.dm.save()
         self.destroy()
 
@@ -2183,7 +2361,10 @@ class ScheduleWindow(tk.Toplevel):
                 s["completed"] = not s.get("completed", False)
                 self.dm.save()
                 if s["completed"]:
+                    _play_sfx("complete")
                     speak(_completion_text(self.dm))
+                else:
+                    _play_sfx("cancel")
                 break
         self._refresh()
 
@@ -2358,6 +2539,7 @@ class ScheduleWindow(tk.Toplevel):
                 initialfile=f"{pet_name}日程_{d0}_{d1}.txt",
                 parent=self)
             if fp:
+                _play_sfx("save")
                 Path(fp).write_text(
                     self.dm.export_range(d0, d1), encoding="utf-8")
                 self._mb.showinfo("✅ 导出成功", f"已保存：\n{fp}", parent=self)
@@ -2368,6 +2550,7 @@ class ScheduleWindow(tk.Toplevel):
                 initialfile=f"{pet_name}日程_{d0}_{d1}.json",
                 parent=self)
             if fp:
+                _play_sfx("save")
                 data = self.dm.schedules_in_range(d0, d1)
                 for s in data:
                     s["note"] = self.dm.get_note(s["date"])
@@ -2386,6 +2569,7 @@ class ScheduleWindow(tk.Toplevel):
             return
         ok, msg = self.dm.import_data(fp)
         if ok:
+            _play_sfx("add")
             self._mb.showinfo("✅ 导入成功", msg, parent=self)
             self._refresh()
             self._title_combo["values"] = [t["title"] for t in self.dm.data.get("templates", [])]

@@ -1,0 +1,103 @@
+#!/bin/bash
+# 小唐 v5.0.0 启动器 — Ventura 13 + Python 3.9 专项兼容
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+RES="$DIR/../Resources"
+LOG="$RES/launcher.log"
+
+ts() { date "+%H:%M:%S"; }
+echo "" >> "$LOG"
+echo "$(ts) ════ 小唐 v7.0 启动 ════" >> "$LOG"
+echo "$(ts) DIR=$DIR" >> "$LOG"
+
+# ── Step1: 找可用 Python 3.9+ ──
+PY=""
+CANDIDATES=(
+    "/opt/homebrew/bin/python3"
+    "/usr/local/bin/python3"
+    "/opt/homebrew/opt/python@3.12/bin/python3"
+    "/opt/homebrew/opt/python@3.11/bin/python3"
+    "/opt/homebrew/opt/python@3.10/bin/python3"
+    "/opt/homebrew/opt/python@3.9/bin/python3"
+    "$HOME/Library/Python/3.9/bin/python3"
+    "$HOME/Library/Python/3.10/bin/python3"
+    "$HOME/Library/Python/3.11/bin/python3"
+    "/usr/bin/python3"
+)
+
+for p in "${CANDIDATES[@]}"; do
+    [ -x "$p" ] || continue
+    OK=$("$p" -c "import sys; print('ok' if sys.version_info>=(3,9) else 'no')" 2>/dev/null)
+    if [ "$OK" = "ok" ]; then
+        VER=$("$p" --version 2>&1)
+        echo "$(ts) ✅ Python: $p ($VER)" >> "$LOG"
+        PY="$p"
+        break
+    fi
+done
+
+if [ -z "$PY" ]; then
+    echo "$(ts) ❌ 未找到 Python 3.9+" >> "$LOG"
+    osascript -e 'display dialog "小唐需要 Python 3.9+\n\n解决方法：\n1. 安装 Homebrew: /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"\n2. 运行: brew install python" buttons {"知道了"} with title "小唐 v7.0" with icon stop' 2>/dev/null
+    exit 1
+fi
+
+# ── Step1.5: 确保用户 site-packages 在路径中 ──
+USER_SITE=$("$PY" -m site --user-site 2>/dev/null)
+if [ -n "$USER_SITE" ] && [ -d "$USER_SITE" ]; then
+    export PYTHONPATH="$USER_SITE:${PYTHONPATH:-}"
+    echo "$(ts) PYTHONPATH 包含: $USER_SITE" >> "$LOG"
+fi
+
+# ── Step2: 检查并安装依赖 ──
+install_pkg() {
+    local import_name="$1"
+    local pip_name="$2"
+    if "$PY" -c "import $import_name" 2>/dev/null; then
+        echo "$(ts) ✅ $pip_name 已安装" >> "$LOG"
+        return 0
+    fi
+    echo "$(ts) 安装 $pip_name ..." >> "$LOG"
+    # 用国内镜像 + --user 安装
+    "$PY" -m pip install --quiet --user "$pip_name" -i https://mirrors.aliyun.com/pypi/simple/ >> "$LOG" 2>&1
+    if "$PY" -c "import $import_name" 2>/dev/null; then
+        echo "$(ts) ✅ $pip_name 安装成功" >> "$LOG"
+        return 0
+    fi
+    # 非 user 模式
+    "$PY" -m pip install --quiet "$pip_name" -i https://mirrors.aliyun.com/pypi/simple/ >> "$LOG" 2>&1
+    if "$PY" -c "import $import_name" 2>/dev/null; then
+        echo "$(ts) ✅ $pip_name 安装成功（全局）" >> "$LOG"
+        return 0
+    fi
+    echo "$(ts) ❌ $pip_name 安装失败" >> "$LOG"
+    return 1
+}
+
+install_pkg PIL    Pillow
+install_pkg pynput pynput
+install_pkg AppKit "pyobjc-framework-Cocoa==11.0"
+install_pkg Quartz "pyobjc-framework-Quartz==11.0"
+
+# ── Step3: 验证关键依赖 ──
+if ! "$PY" -c "import AppKit, Quartz, PIL, pynput" 2>/dev/null; then
+    echo "$(ts) ❌ 关键依赖验证失败" >> "$LOG"
+    MISSING=$("$PY" -c "
+import sys
+missing = []
+for m,p in [('AppKit','pyobjc-framework-Cocoa'),('Quartz','pyobjc-framework-Quartz'),
+            ('PIL','Pillow'),('pynput','pynput')]:
+    try: __import__(m)
+    except: missing.append(p)
+print(' '.join(missing))
+" 2>/dev/null)
+    osascript -e "display dialog \"依赖安装失败，请在终端手动运行：\npip3 install $MISSING\" buttons {\"知道了\"} with title \"小唐 v7.0\" with icon stop" 2>/dev/null
+    exit 1
+fi
+
+echo "$(ts) ✅ 所有依赖就绪" >> "$LOG"
+
+# ── Step4: 启动 ──
+cd "$RES"
+echo "$(ts) 启动 xiaotang.py (PY=$PY)" >> "$LOG"
+exec "$PY" xiaotang.py >> "$RES/stdout.log" 2>> "$RES/stderr.log"

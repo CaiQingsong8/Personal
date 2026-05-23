@@ -319,8 +319,6 @@ def _translate_weather(text):
     return text
 
 # ══════ 语音 ══════
-_say_proc = None  # 上一个语音进程，防止重叠
-
 # 默认人声
 _DEFAULT_VOICE = "云希"
 
@@ -378,42 +376,34 @@ def speak(text):
     clean = _add_particles(clean)
     # 添加停顿
     clean = re.sub(r'([。！？])', r'，', clean)
-    global _say_proc
     if _voice_volume == 0:
         return
-    try:
-        if _say_proc and _say_proc.poll() is None:
-            _say_proc.kill()
-    except:
-        pass
     try:
         voice = EDGE_VOICES.get(_voice_name, "zh-CN-YunxiNeural")
         rate_pct = int((_voice_rate - 240) / 240 * 100)
         rate_str = f"{rate_pct:+d}%"
         cache_path = _tts_cache_path(clean, voice, rate_str)
 
-        if not cache_path.exists():
-            # 未缓存 → 尝试生成 edge-tts，超时 2 秒则静默跳过
-            done = []
-            def _sync_gen():
+        if cache_path.exists():
+            # 缓存命中 → 直接播放，零延迟
+            subprocess.Popen(
+                ["afplay", str(cache_path)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            # 未缓存 → 后台生成+后台播放，绝不阻塞气泡
+            def _gen_play():
                 try:
                     async def _do():
                         tts = edge_tts.Communicate(clean, voice=voice, rate=rate_str)
                         await tts.save(str(cache_path))
                     asyncio.run(_do())
-                    done.append(True)
+                    if cache_path.exists():
+                        subprocess.run(
+                            ["afplay", str(cache_path)],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 except:
                     pass
-            t = threading.Thread(target=_sync_gen, daemon=True)
-            t.start()
-            t.join(timeout=2)
-            if not done:
-                return  # 超时，静默跳过本次语音
-
-        # 缓存命中（或刚刚生成）→ 直接播高质量语音
-        _say_proc = subprocess.Popen(
-            ["afplay", str(cache_path)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            threading.Thread(target=_gen_play, daemon=True).start()
     except:
         pass
 
@@ -909,7 +899,7 @@ class DataManager:
 
 # ══════ 同步到备忘录 ══════
 def sync_to_notes(dm):
-    """将当天日程写入macOS备忘录，每月一份笔记，每天只覆盖自己那天的内容"""
+    """将当天日程写入macOS备忘录，每月一份笔记，只更新当天内容"""
     try:
         today = datetime.date.today()
         today_str = today.isoformat()
@@ -917,21 +907,22 @@ def sync_to_notes(dm):
         pet_name = dm.data.get("pet_name", "小唐")
         note_name = f"{pet_name}{month_str}事项"
 
-        # 构建当天内容（用可见标记，Apple Notes 不会保留 HTML 注释）
+        # 构建当天内容（纯文本标记，Apple Notes 不会修改）
         items = [s for s in dm.data.get("schedules", []) if s.get("date") == today_str]
         items.sort(key=lambda x: x.get("start_time", "00:00"))
-        sep = "═" * 30
-        day_marker = f"📅 {today_str} 📅"
-        today_parts = [f"<b>{sep}</b>", f"<b>{day_marker}</b>"]
+        sep = "=" * 36
+        day_marker = f"\n◇ {today_str} ◇\n"
+        today_lines = [f"<b>{sep}</b>", f"<b>{day_marker.strip()}</b>"]
         for s in items:
             mark = "&#9989;" if s.get("completed") else "&#11093;"
-            today_parts.append(f"{mark} {s['start_time']} {s['title']} ({s['duration']}分钟)")
-        today_parts.append(f"<b>{sep}</b>")
-        today_html = "<br/>".join(today_parts)
+            today_lines.append(f"{mark} {s['start_time']} {s['title']} ({s['duration']}分钟)")
+        today_lines.append(f"<b>{sep}</b>")
+        today_html = "<br/>".join(today_lines)
+        today_block = day_marker + today_html
 
         tmp_new = Path.home() / ".xiaotang_note_new"
 
-        # 读取已有笔记，用可见标记定位并移除当天旧内容
+        # 读取已有笔记
         read_script = f'''
         tell application "Notes"
             try
@@ -945,22 +936,23 @@ def sync_to_notes(dm):
         r = subprocess.run(["osascript", "-e", read_script], capture_output=True, text=True, timeout=10)
         old_body = r.stdout.strip() if r.returncode == 0 and r.stdout else ""
 
-        if old_body and day_marker in old_body:
-            # 移除当天旧块：从 day_marker 到下一个 day_marker（或末尾）
-            idx = old_body.find(day_marker)
-            rest = old_body[idx + len(day_marker):]
-            next_idx = rest.find("📅 ")
+        if old_body and day_marker.strip() in old_body:
+            # 替换当天旧内容（从 ◇ 标记到下一个 ◇ 标记或末尾）
+            dm_str = day_marker.strip()
+            idx = old_body.find(dm_str)
+            rest = old_body[idx + len(dm_str):]
+            next_idx = rest.find("\n◇ ")
             if next_idx >= 0:
-                old_body = old_body[:idx] + rest[next_idx:]
+                new_body = old_body[:idx] + today_block + rest[next_idx:]
             else:
-                old_body = old_body[:idx]
-            html_body = today_html + old_body
+                new_body = old_body[:idx] + today_block
         elif old_body:
-            html_body = today_html + old_body
+            # 追加到已有笔记末尾
+            new_body = old_body + "<br/>" + today_block
         else:
-            html_body = today_html
+            new_body = today_block
 
-        html_full = f"<html><body style='font-family:Helvetica;font-size:13px'>{html_body}</body></html>"
+        html_full = f"<html><body style='font-family:Helvetica;font-size:13px'>{new_body}</body></html>"
 
         tmp_new.write_text(html_full, encoding="utf-8")
         write_script = f'''
@@ -1361,10 +1353,10 @@ class XiaoTang:
 
                 if text == "c4":
                     # 特殊行：四个板块（夸夸·鼓励·祝福·开心）一行展示
-                    cats = [(_GREETING_PRAISE, "glass"),
-                            (_GREETING_ENCOURAGE, "glass"),
-                            (_GREETING_BLESS, "glass"),
-                            (_GREETING_HAPPY, "glass")]
+                    cats = [(_GREETING_PRAISE, None),
+                            (_GREETING_ENCOURAGE, None),
+                            (_GREETING_BLESS, None),
+                            (_GREETING_HAPPY, None)]
                     cat_text = "❤️夸夸  鼓励  祝福  开心🎉"
                     lbl = AppKit.NSTextField.labelWithString_(cat_text)
                     lbl.setFrame_(AppKit.NSMakeRect(14, y + 6, 192, 20))
@@ -1376,7 +1368,8 @@ class XiaoTang:
                     seg_w = 48
                     for ci, (cl, sfx) in enumerate(cats):
                         def _cat_f(cl=cl, sfx=sfx):
-                            _play_sfx(sfx)
+                            if sfx:
+                                _play_sfx(sfx)
                             # 四个板块统一用 thinking.gif 持续 3 秒
                             if "thinking" in self._frames:
                                 self._attention_until = time.time() + 3

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-小唐桌面宠物 v5.0.0
+小唐桌面宠物 v5.0.1
 兼容：macOS Ventura 13+ / Python 3.9+ / pyobjc 8.x+
 核心策略：
   - 所有 AppKit API 调用全部 try-except 隔离，单点失败不崩溃
@@ -362,6 +362,66 @@ def _add_particles(text):
         text = text + p
     return text
 
+# ─── 语音播放队列（逐个播放，Event 唤醒零延迟）──
+# 空闲时直接播放缓存语音，不排队；忙时排队等候
+_voice_queue = []
+_voice_queue_lock = threading.Lock()
+_voice_queue_event = threading.Event()
+_voice_worker_started = False
+_voice_busy = False
+_voice_busy_lock = threading.Lock()
+
+def _is_voice_busy():
+    with _voice_busy_lock:
+        return _voice_busy
+
+def _set_voice_busy(val):
+    global _voice_busy
+    with _voice_busy_lock:
+        _voice_busy = val
+
+def _play_voice_file(path):
+    """播放语音文件，完成后释放忙标志"""
+    _set_voice_busy(True)
+    try:
+        subprocess.run(["afplay", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except:
+        pass
+    _set_voice_busy(False)
+
+def _try_play_direct(path):
+    """队列空闲时直接播放，返回 True。队列忙时返回 False 不走队列。"""
+    with _voice_busy_lock:
+        if _voice_busy or _voice_queue:
+            return False
+        _voice_busy = True
+    threading.Thread(target=_play_voice_file, args=(path,), daemon=True).start()
+    return True
+
+def _enqueue_voice(path):
+    """将语音加入播放队列，由后台线程逐个播放"""
+    global _voice_worker_started
+    with _voice_queue_lock:
+        _voice_queue.append(str(path))
+    _voice_queue_event.set()
+    if not _voice_worker_started:
+        _voice_worker_started = True
+        threading.Thread(target=_voice_worker, daemon=True).start()
+
+def _voice_worker():
+    while True:
+        _voice_queue_event.wait()
+        _voice_queue_event.clear()
+        while True:
+            path = None
+            with _voice_queue_lock:
+                if _voice_queue:
+                    path = _voice_queue.pop(0)
+            if path:
+                _play_voice_file(path)
+            else:
+                break
+
 def speak(text):
     # 去除 emoji
     clean = re.sub(
@@ -385,12 +445,11 @@ def speak(text):
         cache_path = _tts_cache_path(clean, voice, rate_str)
 
         if cache_path.exists():
-            # 缓存命中 → 直接播放，零延迟
-            subprocess.Popen(
-                ["afplay", str(cache_path)],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # 缓存命中：空闲时直接播放零延迟，忙时排队等待
+            if not _try_play_direct(cache_path):
+                _enqueue_voice(cache_path)
         else:
-            # 未缓存 → 后台生成+后台播放，绝不阻塞气泡
+            # 未缓存 → 后台生成，生成后加入播放队列
             def _gen_play():
                 try:
                     async def _do():
@@ -398,9 +457,7 @@ def speak(text):
                         await tts.save(str(cache_path))
                     asyncio.run(_do())
                     if cache_path.exists():
-                        subprocess.run(
-                            ["afplay", str(cache_path)],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        _enqueue_voice(cache_path)
                 except:
                     pass
             threading.Thread(target=_gen_play, daemon=True).start()
@@ -558,10 +615,10 @@ class BubblePanel:
             self._aid_type = self._root.after(delay, self._typewrite)
         else:
             # 文字显示完成后，等待语音读完再关闭
-            # 估算语音时长：每个字约0.15秒 + 标点停顿
-            speak_duration = len(self._full_txt) * 0.12 + 1.5
+            # edge-tts 生成~1.5s + 朗读~0.15s/字 + 缓冲
+            speak_duration = 2.5 + len(self._full_txt) * 0.15
             speak_ms = int(speak_duration * 1000)
-            wait = max(2000, min(speak_ms, 15000))
+            wait = max(4000, min(speak_ms, 18000))
             self._aid_close = self._root.after(wait, self._close)
 
     def _close(self):
@@ -899,62 +956,43 @@ class DataManager:
 
 # ══════ 同步到备忘录 ══════
 def sync_to_notes(dm):
-    """将当天日程写入macOS备忘录，每月一份笔记，只更新当天内容"""
+    """将当月所有日程写入macOS备忘录，每条日程按日期分组，不使用合并逻辑避免格式混乱"""
     try:
         today = datetime.date.today()
         today_str = today.isoformat()
+        month_prefix = today_str[:7]  # "2026-05"
         month_str = today.strftime("%Y年%m月")
         pet_name = dm.data.get("pet_name", "小唐")
         note_name = f"{pet_name}{month_str}事项"
 
-        # 构建当天内容（纯文本标记，Apple Notes 不会修改）
-        items = [s for s in dm.data.get("schedules", []) if s.get("date") == today_str]
-        items.sort(key=lambda x: x.get("start_time", "00:00"))
-        sep = "=" * 36
-        day_marker = f"\n◇ {today_str} ◇\n"
-        today_lines = [f"<b>{sep}</b>", f"<b>{day_marker.strip()}</b>"]
-        for s in items:
-            mark = "&#9989;" if s.get("completed") else "&#11093;"
-            today_lines.append(f"{mark} {s['start_time']} {s['title']} ({s['duration']}分钟)")
-        today_lines.append(f"<b>{sep}</b>")
-        today_html = "<br/>".join(today_lines)
-        today_block = day_marker + today_html
+        # 取当月所有日程，按日期分组
+        month_items = [s for s in dm.data.get("schedules", []) if s.get("date", "").startswith(month_prefix)]
+        by_date = {}
+        for s in month_items:
+            d = s["date"]
+            if d not in by_date:
+                by_date[d] = []
+            by_date[d].append(s)
 
-        tmp_new = Path.home() / ".xiaotang_note_new"
+        # 按日期升序生成块
+        sep = "-" * 32
+        blocks = []
+        for date_str in sorted(by_date.keys()):
+            items = sorted(by_date[date_str], key=lambda x: x.get("start_time", "00:00"))
+            tag = f"[{date_str}]"
+            lines = [f"<b>{sep}</b>", f"<b>{tag}</b>"]
+            for s in items:
+                chk = "✅" if s.get("completed") else "⬜"
+                lines.append(f"{chk} {s['start_time']} {s['title']} ({s['duration']}分钟)")
+            lines.append(f"<b>{sep}</b>")
+            blocks.append("<br/>".join(lines))
 
-        # 读取已有笔记
-        read_script = f'''
-        tell application "Notes"
-            try
-                set theNote to first note whose name is "{note_name}"
-                return body of theNote
-            on error
-                return ""
-            end try
-        end tell
-        '''
-        r = subprocess.run(["osascript", "-e", read_script], capture_output=True, text=True, timeout=10)
-        old_body = r.stdout.strip() if r.returncode == 0 and r.stdout else ""
-
-        if old_body and day_marker.strip() in old_body:
-            # 替换当天旧内容（从 ◇ 标记到下一个 ◇ 标记或末尾）
-            dm_str = day_marker.strip()
-            idx = old_body.find(dm_str)
-            rest = old_body[idx + len(dm_str):]
-            next_idx = rest.find("\n◇ ")
-            if next_idx >= 0:
-                new_body = old_body[:idx] + today_block + rest[next_idx:]
-            else:
-                new_body = old_body[:idx] + today_block
-        elif old_body:
-            # 追加到已有笔记末尾
-            new_body = old_body + "<br/>" + today_block
-        else:
-            new_body = today_block
-
+        new_body = "<br/><br/>".join(blocks)
         html_full = f"<html><body style='font-family:Helvetica;font-size:13px'>{new_body}</body></html>"
 
+        tmp_new = Path.home() / ".xiaotang_note_new"
         tmp_new.write_text(html_full, encoding="utf-8")
+
         write_script = f'''
         tell application "Notes"
             set noteName to "{note_name}"
@@ -1010,7 +1048,7 @@ class XiaoTang:
         "时间过得好快，注意休息哟~",
     ]
     def __init__(self):
-        log("=== 小唐 v7.0 启动 ===")
+        log("=== 小唐 v5.0.1 启动 ===")
 
         # 全部属性先初始化，防止任何地方 AttributeError
         self._state          = "idle"

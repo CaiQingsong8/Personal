@@ -83,6 +83,15 @@
       "date": "2026-05-24",
       "alerted": false,
       "completed": false
+    },
+    {
+      "id": 1779553103021,
+      "title": "家长到访接待",
+      "start_time": "09:30",
+      "duration": 60,
+      "date": "2026-05-24",
+      "alerted": false,
+      "completed": false
     }
   ],
   "history": [
@@ -211,6 +220,12 @@
       "start_time": "08:30",
       "duration": 60,
       "date": "2026-05-24"
+    },
+    {
+      "title": "家长到访接待",
+      "start_time": "09:30",
+      "duration": 60,
+      "date": "2026-05-24"
     }
   ],
   "notes": {
@@ -284,10 +299,11 @@
     "cg011bug": 1,
     "销售跟进电话": 1,
     "新家长咨询接待": 1,
-    "课程体验安排": 1
+    "课程体验安排": 1,
+    "家长到访接待": 1
   },
   "voice": {
-    "name": "云希",
+    "name": "云扬",
     "rate": 240,
     "volume": 30
   },

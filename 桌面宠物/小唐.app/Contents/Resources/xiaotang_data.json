@@ -82,7 +82,7 @@
       "duration": 60,
       "date": "2026-05-24",
       "alerted": false,
-      "completed": false
+      "completed": true
     },
     {
       "id": 1779553103021,
@@ -91,7 +91,7 @@
       "duration": 60,
       "date": "2026-05-24",
       "alerted": false,
-      "completed": false
+      "completed": true
     }
   ],
   "history": [

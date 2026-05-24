@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-小唐桌面宠物 v5.0.1
+小唐桌面宠物 v5.0.2
 兼容：macOS Ventura 13+ / Python 3.9+ / pyobjc 8.x+
 核心策略：
   - 所有 AppKit API 调用全部 try-except 隔离，单点失败不崩溃
@@ -458,8 +458,8 @@ def speak(text):
                     asyncio.run(_do())
                     if cache_path.exists():
                         _enqueue_voice(cache_path)
-                except:
-                    pass
+                except Exception as _e:
+                    log(f"TTS 生成失败: {_e}")
             threading.Thread(target=_gen_play, daemon=True).start()
     except:
         pass
@@ -817,7 +817,6 @@ class DataManager:
             "event_counts": {},
             "voice": {"name": _DEFAULT_VOICE, "rate": 240, "volume": 60},
             "pet_name": "小唐",
-            "note_title": "",
         }
         self._load()
         # 强制重置模板为最新默认值
@@ -827,8 +826,6 @@ class DataManager:
             self.data["voice"] = {"name": _DEFAULT_VOICE, "rate": 240, "volume": 60}
         if "pet_name" not in self.data:
             self.data["pet_name"] = "小唐"
-        if "note_title" not in self.data:
-            self.data["note_title"] = ""
 
     def _load(self):
         if DATA_FILE.exists() and DATA_FILE.stat().st_size > 0:
@@ -991,10 +988,9 @@ def sync_to_notes(dm):
             blocks.append("<br/>".join(lines))
 
         new_body = "<br/><br/>".join(blocks)
-        # 前置自定义标题
-        note_title = dm.data.get("note_title", "")
-        if note_title:
-            new_body = f"<h2>{note_title}</h2><br/>{new_body}"
+        # 自动前置标题：小唐2026年05月日程本
+        note_title = f"{pet_name}{month_str}日程本"
+        new_body = f"<h2>{note_title}</h2><br/>{new_body}"
         html_full = f"<html><body style='font-family:Helvetica;font-size:13px'>{new_body}</body></html>"
 
         tmp_new = Path.home() / ".xiaotang_note_new"
@@ -1055,7 +1051,7 @@ class XiaoTang:
         "时间过得好快，注意休息哟~",
     ]
     def __init__(self):
-        log("=== 小唐 v5.0.1 启动 ===")
+        log("=== 小唐 v5.0.2 启动 ===")
 
         # 全部属性先初始化，防止任何地方 AttributeError
         self._state          = "idle"
@@ -1227,7 +1223,7 @@ class XiaoTang:
                 rows.append((f"✅ 做完了「{t}」", self._done_yes))
                 rows.append(("⏰ 还没，再给1小时", self._done_no))
             else:
-                # 💬 打招呼（完整问候：日期+天气+节日）
+                # 💬 打招呼（日期+天气+节日）
                 def _greeting():
                     now = datetime.datetime.now()
                     ds = now.strftime("%Y年%m月%d日")
@@ -1241,12 +1237,7 @@ class XiaoTang:
                         weather = get_weather("深圳")
                     except:
                         weather = "天气未知"
-                    extra = ""
-                    if now.weekday() == 4:
-                        extra = "终于周五了，马上就可以休息了。"
-                    elif now.weekday() == 5:
-                        extra = "今天是周六，加班辛苦啦。"
-                    msg = f"{time_word}好呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}适当休息，祝开开心心，发财暴富，爱你呦！"
+                    msg = f"{time_word}好呀！今天是{ds}{wd}{holiday_text}。天气{weather}。主人要天天开心，你会越来越顺滴！"
                     self._enqueue(msg)
                 rows.append(("💬 打招呼", _greeting))
 
@@ -1907,15 +1898,9 @@ except Exception as e:
                 weather = get_weather("深圳")
             except:
                 weather = "天气未知"
-            wd_idx = now.weekday()
             holiday = _get_holiday()
             holiday_text = f"，{holiday}快乐" if holiday else ""
-            extra = ""
-            if wd_idx == 4:
-                extra = "终于周五了，马上就可以休息了。"
-            elif wd_idx == 5:
-                extra = "今天是周六，加班辛苦啦。"
-            msg = f"{greeting}呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}适当休息，祝开开心心，发财暴富，爱你呦！"
+            msg = f"{greeting}呀！今天是{ds}{wd}{holiday_text}。天气{weather}。主人要天天开心，你会越来越顺滴！"
             self.root.after(0, lambda: self._enqueue(msg))
 
         # 延迟 3s 让思考动画先播放
@@ -2040,12 +2025,6 @@ class ScheduleWindow(tk.Toplevel):
         tk.Button(bar, text="📋 同步", command=_sync_notes,
                   bg="#87CEEB", fg="#444", font=("PingFang SC", 10),
                   relief="flat", cursor="arrow").pack(side="left", padx=4)
-        # 备忘录标题（可点击编辑）
-        _note_title = self.dm.data.get("note_title", "") or "点击添加标题"
-        self._note_title_label = tk.Label(bar, text=f"📝 {_note_title}", bg="#87CEEB", fg="#555",
-                                           font=("PingFang SC", 10), cursor="hand2")
-        self._note_title_label.pack(side="left", padx=2)
-        self._note_title_label.bind("<Button-1>", lambda e: self._edit_note_title())
         today = datetime.date.today()
         wds   = ["星期一","星期二","星期三","星期四","星期五","星期六","星期日"]
         tk.Label(bar, text=f"{today}  {wds[today.weekday()]}",
@@ -2086,30 +2065,6 @@ class ScheduleWindow(tk.Toplevel):
             self._f_hist.pack(fill="both", expand=True)
             self.update_idletasks()
             self._h_query()
-
-    def _edit_note_title(self):
-        """编辑备忘录标题"""
-        pop = tk.Toplevel(self)
-        pop.title("备忘录标题")
-        pop.geometry("300x120")
-        pop.configure(bg="#FDF6EE")
-        pop.transient(self)
-        pop.grab_set()
-        tk.Label(pop, text="设置备忘录标题（留空则不显示）", bg="#FDF6EE",
-                 font=("PingFang SC", 11)).pack(pady=(10, 2))
-        v = tk.StringVar(value=self.dm.data.get("note_title", ""))
-        e = tk.Entry(pop, textvariable=v, font=("PingFang SC", 12), width=24)
-        e.pack(padx=14)
-        def _ok():
-            title = v.get().strip()
-            self.dm.data["note_title"] = title
-            self.dm.save()
-            display = title or "点击添加标题"
-            self._note_title_label.config(text=f"📝 {display}")
-            pop.destroy()
-        tk.Button(pop, text="确定", command=_ok,
-                  bg="#87CEEB", fg="black", font=("PingFang SC", 11),
-                  relief="flat").pack(pady=6)
 
     def _build_schedule(self, p):
         from tkinter import ttk

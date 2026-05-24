@@ -870,18 +870,29 @@ class DataManager:
         self.save()
 
     def export_range(self, d0, d1):
-        lines = [f"📅 小唐日程  {d0} ~ {d1}", "=" * 38]
+        name = self.data.get("pet_name", "小唐")
+        lines = [f"📅 {name}日程  {d0} ~ {d1}", "=" * 38]
         rows  = sorted(self.schedules_in_range(d0, d1),
                        key=lambda x: (x["date"], x["start_time"]))
         cur = None
         for s in rows:
             if s["date"] != cur:
+                if cur and self.data.get("notes", {}).get(cur):
+                    lines.append(f"  📝 {self.data['notes'][cur]}")
                 cur = s["date"]
                 lines.append(f"\n▸ {cur}")
             chk = "✅" if s.get("completed") else "⬜"
             lines.append(f"  {chk} {s['start_time']}  {s['title']}  ({s['duration']}min)")
+        if cur and self.data.get("notes", {}).get(cur):
+            lines.append(f"  📝 {self.data['notes'][cur]}")
         if not rows:
             lines.append("  （该时间段暂无日程）")
+            # 即使无日程，也可能有笔记
+            for d in {d0, d1}:
+                n = self.data.get("notes", {}).get(d)
+                if n:
+                    lines.append(f"\n▸ {d}")
+                    lines.append(f"  📝 {n}")
         return "\n".join(lines)
 
 
@@ -1895,7 +1906,7 @@ class ScheduleWindow(tk.Toplevel):
         tab_f = tk.Frame(self, bg="#B0E0E6")
         tab_f.pack(fill="x")
         self._tab_btns = {}
-        for label, val in [("📌 今日日程", "schedule"), ("📒 历史导出", "history")]:
+        for label, val in [("📌 今日日程", "schedule"), ("📦 导入导出", "history")]:
             btn = tk.Button(tab_f, text=label,
                             command=lambda v=val: self._switch_tab(v),
                             font=("PingFang SC", 12, "bold"),
@@ -2460,11 +2471,13 @@ class ScheduleWindow(tk.Toplevel):
 
     @staticmethod
     def _parse_import_items(fp):
-        """解析导入文件，返回 (items列表, min_date, max_date)"""
+        """解析导入文件，返回 (items列表, min_date, max_date, notes字典)"""
         ext = Path(fp).suffix.lower()
         content = Path(fp).read_text(encoding="utf-8")
         items = []
+        notes = {}
 
+        # JSON 解析
         if ext == ".json" or ext == "":
             try:
                 data = json.loads(content)
@@ -2478,19 +2491,28 @@ class ScheduleWindow(tk.Toplevel):
                             "duration": s.get("duration", 30),
                             "completed": s.get("completed", False),
                         })
-                if items:
-                    return items
+                if isinstance(data, dict) and "notes" in data:
+                    notes = data["notes"]
+                if items or notes:
+                    dates = sorted(set(it["date"] for it in items if it.get("date")) | set(notes.keys()))
+                    d0 = dates[0] if dates else (list(notes.keys())[0] if notes else None)
+                    d1 = dates[-1] if dates else d0
+                    return items, notes, d0, d1
             except:
                 pass
             if ext == ".json":
-                return [], None, None
+                return [], {}, None, None
 
         # TXT 解析
         cur_date = None
         for line in content.strip().split("\n"):
+            raw = line
             line = line.strip()
             if line.startswith("▸"):
                 cur_date = line[1:].strip()
+            elif cur_date and line.startswith("📝"):
+                # 日记
+                notes[cur_date] = line[2:].strip()
             elif cur_date and line and line[0] in "⬜✅":
                 m = re.match(r'[⬜✅]\s+(\d{2}:\d{2})\s+(.+?)\s+\((\d+)min\)', line)
                 if m:
@@ -2501,10 +2523,53 @@ class ScheduleWindow(tk.Toplevel):
                         "duration": int(m.group(3)),
                         "completed": line[0] == "✅",
                     })
-        if not items:
-            return [], None, None
-        dates = sorted(set(it["date"] for it in items if it.get("date")))
-        return items, dates[0], dates[-1]
+        if not items and not notes:
+            return [], {}, None, None
+        dates = sorted(set(it["date"] for it in items if it.get("date")) | set(notes.keys()))
+        return items, notes, dates[0], dates[-1]
+
+    def _import_ask(self, msg):
+        """自定义导入选项弹窗：新增 / 覆盖 / 取消"""
+        pop = tk.Toplevel(self)
+        pop.title("导入选项")
+        pop.configure(bg="#151515")
+        pop.transient(self)
+        pop.grab_set()
+        pop.lift()
+        pop.focus_force()
+        result = [None]
+
+        # 顶部彩色条
+        tk.Frame(pop, bg="#FF9A6C", height=3).pack(fill="x")
+
+        tk.Label(pop, text="📥 导入日程", bg="#151515", fg="#87CEEB",
+                 font=("PingFang SC", 14, "bold")).pack(pady=(16, 6))
+
+        tk.Label(pop, text=msg, bg="#151515", fg="#ddd",
+                 font=("PingFang SC", 13), justify="center",
+                 wraplength=380).pack(pady=(0, 16), padx=24)
+
+        br = tk.Frame(pop, bg="#151515"); br.pack(pady=(0, 12))
+        for txt, val, bg in [
+            ("✨ 新增", "add", "#1a3a4a"),
+            ("📝 覆盖", "overwrite", "#4a2a1a"),
+            ("❌ 取消", None, "#333"),
+        ]:
+            tk.Button(br, text=txt, command=lambda v=val: [result.__setitem__(0, v), pop.destroy()],
+                      bg=bg, fg="#87CEEB", font=("PingFang SC", 12, "bold"),
+                      relief="flat", cursor="arrow", padx=14, pady=2).pack(side="left", padx=6)
+
+        # 定位在父窗口中间靠上
+        pop.update_idletasks()
+        w, h = pop.winfo_reqwidth() + 40, pop.winfo_reqheight() + 20
+        px, py = self.winfo_x(), self.winfo_y()
+        pw, ph = self.winfo_width(), self.winfo_height()
+        x = px + (pw - w) // 2
+        y = py + max(40, ph // 4)
+        pop.geometry(f"{w}x{h}+{x}+{y}")
+
+        self.wait_window(pop)
+        return result[0]
 
     def _h_import(self):
         """导入数据，带日期范围保护和冲突选项"""
@@ -2515,38 +2580,43 @@ class ScheduleWindow(tk.Toplevel):
         if not fp:
             return
 
-        items, d0, d1 = self._parse_import_items(fp)
-        if not items or not d0:
+        items, notes, d0, d1 = self._parse_import_items(fp)
+        if (not items and not notes) or not d0:
             self._mb.showerror("导入失败", "无法解析文件内容，请确认格式正确", parent=self)
             return
 
-        choice = self._mb.askyesnocancel(
-            "导入选项",
-            f"检测到日期范围：{d0} ~ {d1}\n"
-            f"共 {len(items)} 条日程\n\n"
-            f"「是」= 保留已有，仅新增\n"
-            f"「否」= 覆盖此范围内所有日程\n"
-            f"「取消」= 取消导入",
-            parent=self)
+        _play_sfx("glass")
+        day_range = d0 if d0 == d1 else f"{d0}~{d1}"
+        choice = self._import_ask(
+            f"📅 本次导入日程为{day_range}，请选择")
 
         if choice is None:
             return  # 取消
 
         # 只操作 d0~d1 范围内的日程
         old = self.dm.data.get("schedules", [])
-        if choice is False:
+        if choice == "overwrite":
             # 覆盖：删除范围内所有日程，再添加
             self.dm.data["schedules"] = [s for s in old if not (d0 <= s["date"] <= d1)]
         else:
-            # 保留已有：构建已有 key 集合 (date|start_time|title)
+            # 新增：构建已有 key 集合 (date|start_time|title)
             existing = {(s["date"], s["start_time"], s["title"])
                         for s in old if d0 <= s["date"] <= d1}
+
+        # 导入笔记
+        note_count = 0
+        for d, n in notes.items():
+            if d0 <= d <= d1:
+                old_note = self.dm.data.get("notes", {}).get(d, "")
+                if choice == "overwrite" or not old_note:
+                    self.dm.set_note(d, n)
+                    note_count += 1
 
         count = 0
         imported_items = []
         for it in items:
-            if choice is True:
-                # 保留已有：跳过已存在的
+            if choice == "add":
+                # 新增：跳过已存在的
                 key = (it["date"], it["start_time"], it["title"])
                 if key in existing:
                     continue
@@ -2567,13 +2637,18 @@ class ScheduleWindow(tk.Toplevel):
             self.dm.save()
 
         _play_sfx("add")
+        msg_parts = [f"日程 {count} 条" if count else "无新日程"]
+        if note_count:
+            msg_parts.append(f"日记 {note_count} 条")
         self._mb.showinfo("✅ 导入成功",
             f"日期范围：{d0} ~ {d1}\n"
-            f"新增 {count} 条，"
-            f"{'跳过 ' + str(len(items) - count) + ' 条重复' if choice and count < len(items) else ''}",
+            f"{'、'.join(msg_parts)}"
+            f"{'（跳过 ' + str(len(items) - count) + ' 条重复）' if choice == 'add' and count < len(items) else ''}",
             parent=self)
         self._refresh()
         self._title_combo["values"] = [t["title"] for t in self.dm.data.get("templates", [])]
+        # 刷新预览页面
+        self._h_query()
 
 # ══════ 入口 ══════
 if __name__ == "__main__":

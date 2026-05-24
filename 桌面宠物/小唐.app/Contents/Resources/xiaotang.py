@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-小唐桌面宠物 v5.0.2
+小唐桌面宠物 v5.0.4
 兼容：macOS Ventura 13+ / Python 3.9+ / pyobjc 8.x+
 核心策略：
   - 所有 AppKit API 调用全部 try-except 隔离，单点失败不崩溃
@@ -911,82 +911,16 @@ class DataManager:
         rows  = sorted(self.schedules_in_range(d0, d1),
                        key=lambda x: (x["date"], x["start_time"]))
         cur = None
-        noted = set()
         for s in rows:
             if s["date"] != cur:
                 cur = s["date"]
                 lines.append(f"\n▸ {cur}")
-            lines.append(f"  {s['start_time']}  {s['title']}  ({s['duration']}min)")
-        for s in rows:
-            if s["date"] not in noted:
-                noted.add(s["date"])
-                n = self.get_note(s["date"])
-                if n.strip():
-                    lines.append(f"  📝 {n.strip()}")
+            chk = "✅" if s.get("completed") else "⬜"
+            lines.append(f"  {chk} {s['start_time']}  {s['title']}  ({s['duration']}min)")
         if not rows:
             lines.append("  （该时间段暂无日程）")
         return "\n".join(lines)
 
-# ══════ 同步到备忘录 ══════
-def sync_to_notes(dm):
-    """将当月所有日程写入macOS备忘录，每条日程按日期分组，不使用合并逻辑避免格式混乱"""
-    try:
-        today = datetime.date.today()
-        today_str = today.isoformat()
-        month_prefix = today_str[:7]  # "2026-05"
-        month_str = today.strftime("%Y年%m月")
-        pet_name = dm.data.get("pet_name", "小唐")
-        note_name = f"{pet_name}{month_str}事项"
-
-        # 取当月所有日程，按日期分组
-        month_items = [s for s in dm.data.get("schedules", []) if s.get("date", "").startswith(month_prefix)]
-        by_date = {}
-        for s in month_items:
-            d = s["date"]
-            if d not in by_date:
-                by_date[d] = []
-            by_date[d].append(s)
-
-        # 按日期升序生成块
-        sep = "-" * 32
-        blocks = []
-        for date_str in sorted(by_date.keys()):
-            items = sorted(by_date[date_str], key=lambda x: x.get("start_time", "00:00"))
-            tag = f"[{date_str}]"
-            lines = [f"<b>{sep}</b>", f"<b>{tag}</b>"]
-            for s in items:
-                chk = "✅" if s.get("completed") else "⬜"
-                lines.append(f"{chk} {s['start_time']} {s['title']} ({s['duration']}分钟)")
-            lines.append(f"<b>{sep}</b>")
-            blocks.append("<br/>".join(lines))
-
-        new_body = "<br/><br/>".join(blocks)
-        # 自动前置标题：小唐2026年05月日程本
-        note_title = f"{pet_name}{month_str}日程本"
-        new_body = f"<h2>{note_title}</h2><br/>{new_body}"
-        html_full = f"<html><body style='font-family:Helvetica;font-size:13px'>{new_body}</body></html>"
-
-        tmp_new = Path.home() / ".xiaotang_note_new"
-        tmp_new.write_text(html_full, encoding="utf-8")
-
-        write_script = f'''
-        tell application "Notes"
-            set noteName to "{note_name}"
-            set noteHtml to (do shell script "cat {tmp_new}")
-            try
-                set theNote to first note whose name is noteName
-                set body of theNote to noteHtml
-            on error
-                make new note with properties {{name:noteName, body:noteHtml}}
-            end try
-        end tell
-        '''
-        subprocess.run(["osascript", "-e", write_script], capture_output=True, timeout=10)
-        tmp_new.unlink(missing_ok=True)
-        return True
-    except Exception as e:
-        log(f"同步备忘录失败: {e}")
-        return False
 
 # ══════ 完成播报 ══════
 def _completion_text(dm):
@@ -1024,7 +958,7 @@ class XiaoTang:
         "时间过得好快，注意休息哟~",
     ]
     def __init__(self):
-        log("=== 小唐 v5.0.2 启动 ===")
+        log("=== 小唐 v5.0.4 启动 ===")
 
         # 全部属性先初始化，防止任何地方 AttributeError
         self._state          = "idle"
@@ -1838,17 +1772,7 @@ except Exception as e:
 
     # ─── 自动同步（每天18:00触发）──
     def _auto_sync_loop(self):
-        while True:
-            try:
-                now = datetime.datetime.now()
-                if now.hour == 18 and now.minute == 0:
-                    log("自动同步到备忘录")
-                    sync_to_notes(self.dm)
-                    time.sleep(61)
-                time.sleep(30)
-            except Exception as e:
-                log(f"auto_sync: {e}")
-                time.sleep(60)
+        pass
 
     # ─── 早间问候 ──────────────────────────
     def _morning_greeting(self):
@@ -1998,16 +1922,6 @@ class ScheduleWindow(tk.Toplevel):
         title_label.bind("<Button-1>", lambda e: _change_pet_name())
         tk.Label(bar, text="✏️", bg="#87CEEB", fg="#555", cursor="hand2",
                  font=("PingFang SC", 10)).pack(side="left")
-        # 同步到备忘录按钮
-        def _sync_notes():
-            if sync_to_notes(self.dm):
-                _play_sfx("save")
-                self._mb.showinfo("同步成功", "日程已同步到备忘录", parent=self)
-            else:
-                self._mb.showerror("同步失败", "请检查备忘录权限", parent=self)
-        tk.Button(bar, text="📋 同步", command=_sync_notes,
-                  bg="#87CEEB", fg="#444", font=("PingFang SC", 10),
-                  relief="flat", cursor="arrow").pack(side="left", padx=4)
         today = datetime.date.today()
         wds   = ["星期一","星期二","星期三","星期四","星期五","星期六","星期日"]
         tk.Label(bar, text=f"{today}  {wds[today.weekday()]}",

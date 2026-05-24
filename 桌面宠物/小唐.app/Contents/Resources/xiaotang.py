@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-小唐桌面宠物 v6.0.0
+小唐桌面宠物 v6.1.0
 兼容：macOS Ventura 13+ / Python 3.9+ / pyobjc 8.x+
 核心策略：
   - 所有 AppKit API 调用全部 try-except 隔离，单点失败不崩溃
@@ -357,7 +357,7 @@ def _add_particles(text):
         return text
     p = _EMO_PARTICLES[int(h[8:16], 16) % len(_EMO_PARTICLES)]
     idx = text.rfind("！")
-    if idx >= 0 and text[idx-1] not in _EMO_PARTICLES:
+    if idx > 0 and text[idx-1] not in _EMO_PARTICLES:
         text = text[:idx] + p + text[idx:]
     elif not text.endswith(tuple(_EMO_PARTICLES)):
         text = text + p
@@ -390,13 +390,13 @@ def _voice_worker():
                     path = _voice_queue.pop(0)
             if path:
                 try:
-                    subprocess.run(["afplay", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    subprocess.run(["afplay", "--volume", str(_voice_volume / 100.0), str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 except Exception as _e:
                     log(f"afplay 失败: {_e}")
             else:
                 break
 
-def speak(text):
+def speak(text, no_particles=False):
     # 去除 emoji
     clean = re.sub(
         r'[\U00010000-\U0010ffff\U00002702-\U000027B0'
@@ -406,8 +406,9 @@ def speak(text):
         return
     # 去除特殊符号
     clean = re.sub(r'[~～♡♥♪♫❤★☆✨💕🌸]', '', clean)
-    # 添加语气助词
-    clean = _add_particles(clean)
+    if not no_particles:
+        # 添加语气助词
+        clean = _add_particles(clean)
     # 添加停顿
     clean = re.sub(r'([。！？])', r'，', clean)
     if _voice_volume == 0:
@@ -790,6 +791,7 @@ class DataManager:
             "event_counts": {},
             "voice": {"name": _DEFAULT_VOICE, "rate": 240, "volume": 60},
             "pet_name": "小唐",
+            "cat_size": 128,
         }
         self._load()
         # 强制重置模板为最新默认值
@@ -913,7 +915,6 @@ def _completion_text(dm):
 
 # ══════ 主程序 ══════
 class XiaoTang:
-    SIZE = 192
     FIXED_REMINDERS = [
         ("10:00", "记得喝水休息一下哦~ 💧"),
         ("12:00", "下班休息喽！记得吃午餐哟！🍱"),
@@ -932,7 +933,7 @@ class XiaoTang:
         "时间过得好快，注意休息哟~",
     ]
     def __init__(self):
-        log("=== 小唐 v6.0.0 启动 ===")
+        log("=== 小唐 v6.1.0 启动 ===")
 
         # 全部属性先初始化，防止任何地方 AttributeError
         self._state          = "idle"
@@ -954,6 +955,7 @@ class XiaoTang:
         self.ACTIVE_TIMEOUT  = 1
         self.SLEEP_TIMEOUT   = 300
         self.dm              = DataManager()
+        self._cat_size       = self.dm.data.get("cat_size", 128)
 
         # Tk 隐藏（仅做 after 调度 + Toplevel 父窗口）
         self.root = tk.Tk()
@@ -984,7 +986,7 @@ class XiaoTang:
         global _current_img
         try:
             screen = AppKit.NSScreen.mainScreen().visibleFrame()
-            sz = self.SIZE
+            sz = self._cat_size
             wx = screen.origin.x + screen.size.width - sz - 20
             wy = screen.origin.y + 50
 
@@ -1106,25 +1108,27 @@ class XiaoTang:
             else:
                 # 💬 打招呼（日期+天气+节日）
                 def _greeting():
-                    now = datetime.datetime.now()
-                    ds = now.strftime("%Y年%m月%d日")
-                    wds = ["星期一","星期二","星期三","星期四","星期五","星期六","星期日"]
-                    wd = wds[now.weekday()]
-                    h = now.hour
-                    time_word = "早上" if 5 <= h < 12 else "上午" if h < 12 else "中午" if h < 14 else "下午" if h < 18 else "晚上"
-                    holiday = _get_holiday()
-                    holiday_text = f"，{holiday}快乐" if holiday else ""
-                    try:
-                        weather = get_weather("深圳")
-                    except:
-                        weather = "天气未知"
-                    extra = ""
-                    if now.weekday() == 4:
-                        extra = "终于周五了，马上就可以休息了。"
-                    elif now.weekday() == 5:
-                        extra = "今天是周六，加班辛苦啦。"
-                    msg = f"{time_word}好呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}祝主人顺风顺水顺财神，朝朝暮暮有人疼！"
-                    self._enqueue(msg)
+                    def _bg():
+                        now = datetime.datetime.now()
+                        ds = now.strftime("%Y年%m月%d日")
+                        wds = ["星期一","星期二","星期三","星期四","星期五","星期六","星期日"]
+                        wd = wds[now.weekday()]
+                        h = now.hour
+                        time_word = "早上" if 5 <= h < 12 else "上午" if h < 12 else "中午" if h < 14 else "下午" if h < 18 else "晚上"
+                        holiday = _get_holiday()
+                        holiday_text = f"，{holiday}快乐" if holiday else ""
+                        try:
+                            weather = get_weather("深圳")
+                        except:
+                            weather = "天气未知"
+                        extra = ""
+                        if now.weekday() == 4:
+                            extra = "终于周五了，马上就可以休息了。"
+                        elif now.weekday() == 5:
+                            extra = "今天是周六，加班辛苦啦。"
+                        msg = f"{time_word}好呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}祝主人顺风顺水顺财神，朝朝暮暮有人疼！"
+                        self.root.after(0, lambda: self._enqueue(msg, no_particles=True))
+                    threading.Thread(target=_bg, daemon=True).start()
                 rows.append(("💬 打招呼", _greeting))
 
                 # 四个语录板块
@@ -1145,7 +1149,7 @@ class XiaoTang:
             def _voice_settings():
                 log("打开语音设置")
                 pop = tk.Toplevel(self.root)
-                pop.title("语音设置")
+                pop.title("设置")
                 pop.configure(bg="#151515")
                 pop.overrideredirect(True)
                 pop.attributes("-topmost", True)
@@ -1153,12 +1157,12 @@ class XiaoTang:
                 cf = self._win.frame()
                 scr = AppKit.NSScreen.mainScreen().frame()
                 px = int(cf.origin.x + cf.size.width + 6)
-                py = int(scr.size.height - cf.origin.y - cf.size.height + cf.size.height/2 - 90)
+                py = int(scr.size.height - cf.origin.y - cf.size.height + cf.size.height/2 - 120)
                 if px + 200 > scr.size.width - 10:
                     px = int(cf.origin.x - 206)
                 if py < 40:
                     py = 40
-                pop.geometry(f"200x180+{px}+{py}")
+                pop.geometry(f"200x240+{px}+{py}")
                 # 点击外部自动关闭
                 def _pop_check_close():
                     if not pop.winfo_exists():
@@ -1168,8 +1172,8 @@ class XiaoTang:
                         scre = AppKit.NSScreen.mainScreen().frame()
                         gx = px
                         gy_tk = py
-                        gy_mac = int(scre.size.height - gy_tk - 180)
-                        if not (gx <= mp.x <= gx + 200 and gy_mac <= mp.y <= gy_mac + 180):
+                        gy_mac = int(scre.size.height - gy_tk - 240)
+                        if not (gx <= mp.x <= gx + 200 and gy_mac <= mp.y <= gy_mac + 240):
                             if AppKit.NSEvent.pressedMouseButtons() & 1:
                                 try: pop.destroy()
                                 except: pass
@@ -1179,39 +1183,53 @@ class XiaoTang:
                     if pop.winfo_exists():
                         pop.after(150, _pop_check_close)
                 pop.after(300, _pop_check_close)
-                # 标题
-                tk.Label(pop, text="语音设置", bg="#151515", fg="#87CEEB",
-                         font=("PingFang SC", 13, "bold")).pack(pady=(8, 2))
-                # 人声
+                # ── 猫大小 ──
+                v_size = tk.StringVar()
+                size_map = {"mini": 96, "小": 128, "中": 192, "大": 256, "超大": 384}
+                cur_name = next((k for k, v in size_map.items() if v == self._cat_size), "小")
+                f_size = tk.Frame(pop, bg="#151515"); f_size.pack(padx=14, pady=(10, 2))
+                f4_lbl = tk.Label(f_size, text=f"🐱 ({cur_name})", bg="#151515", fg="#aaa",
+                         font=("PingFang SC", 10), width=7, anchor="e")
+                f4_lbl.pack(side="left", padx=(0, 4))
+                cb_size = ttk.Combobox(f_size, textvariable=v_size,
+                    values=list(size_map.keys()),
+                    width=6, state="readonly")
+                cb_size.pack(side="left")
+                cb_size.set(cur_name)
+                def _on_size_change(*_):
+                    name = v_size.get()
+                    if name in size_map:
+                        self._set_cat_size(size_map[name])
+                        f4_lbl.config(text=f"🐱 ({name})")
+                v_size.trace_add("write", _on_size_change)
+                # ── 语音 ──
                 v_voice = tk.StringVar(value=vn)
                 f1 = tk.Frame(pop, bg="#151515"); f1.pack(padx=14, pady=2)
-                tk.Label(f1, text="人声", bg="#151515", fg="#aaa",
-                         font=("PingFang SC", 10)).pack(side="left")
+                tk.Label(f1, text="🗣️人声", bg="#151515", fg="#aaa",
+                         font=("PingFang SC", 10), width=7, anchor="e").pack(side="left", padx=(0, 4))
                 cb_voice = ttk.Combobox(f1, textvariable=v_voice,
                     values=list(EDGE_VOICES.keys()),
-                    width=8, state="readonly")
-                cb_voice.pack(side="left", padx=4)
-                # 语速
+                    width=6, state="readonly")
+                cb_voice.pack(side="left")
                 v_spd = tk.StringVar()
                 f2 = tk.Frame(pop, bg="#151515"); f2.pack(padx=14, pady=2)
-                tk.Label(f2, text="语速", bg="#151515", fg="#aaa",
-                         font=("PingFang SC", 10)).pack(side="left")
+                tk.Label(f2, text="⏱️语速", bg="#151515", fg="#aaa",
+                         font=("PingFang SC", 10), width=7, anchor="e").pack(side="left", padx=(0, 4))
                 spd_items = [f"{k}({v})" for k,v in spd_vals.items()]
                 cb_spd = ttk.Combobox(f2, textvariable=v_spd,
-                    values=spd_items, width=10, state="readonly")
-                cb_spd.pack(side="left", padx=4)
+                    values=spd_items, width=6, state="readonly")
+                cb_spd.pack(side="left")
                 cb_spd.set(f"{spd_l}({spd_vals[spd_l]})")
-                # 音量
                 v_vol = tk.StringVar()
                 f3 = tk.Frame(pop, bg="#151515"); f3.pack(padx=14, pady=2)
-                tk.Label(f3, text="音量", bg="#151515", fg="#aaa",
-                         font=("PingFang SC", 10)).pack(side="left")
+                tk.Label(f3, text="🔈音量", bg="#151515", fg="#aaa",
+                         font=("PingFang SC", 10), width=7, anchor="e").pack(side="left", padx=(0, 4))
                 vol_items = [f"{k}({v})" for k,v in vol_vals.items()]
                 cb_vol = ttk.Combobox(f3, textvariable=v_vol,
-                    values=vol_items, width=10, state="readonly")
-                cb_vol.pack(side="left", padx=4)
+                    values=vol_items, width=6, state="readonly")
+                cb_vol.pack(side="left")
                 cb_vol.set(f"{vol_l}({vol_vals[vol_l]})")
-                # 保存
+                # ── 底部：保存 / 退出 ──
                 def _apply():
                     try:
                         sr = spd_vals[v_spd.get().split("(")[0]]
@@ -1220,10 +1238,14 @@ class XiaoTang:
                         pop.destroy()
                     except Exception as e:
                         log(f"语音保存错误: {e}")
-                tk.Button(pop, text="💾 保存", command=_apply,
+                bf = tk.Frame(pop, bg="#151515"); bf.pack(pady=(8, 6), fill="x", padx=14)
+                tk.Button(bf, text="💾 保存", command=_apply,
                           bg="#333", fg="#87CEEB", font=("PingFang SC", 11),
-                          relief="flat").pack(pady=6)
-            rows.append((f"🔊 {vn} · {spd_l} · {vol_l}", _voice_settings))
+                          relief="flat").pack(side="left")
+                tk.Button(bf, text="✕ 退出", command=pop.destroy,
+                          bg="#333", fg="#999", font=("PingFang SC", 11),
+                          relief="flat").pack(side="right")
+            rows.append(("🐱 体积  🔊 语音", _voice_settings))
 
             # 今日待办（已完成折叠）
             items = self.dm.today_schedules()
@@ -1434,7 +1456,7 @@ class XiaoTang:
     # ─── GIF 加载 ──────────────────────────
     def _load_frames(self):
         global _current_img
-        sz = self.SIZE
+        sz = self._cat_size
         for state, fname in [
             ("idle",     "idle.gif"),
             ("working",  "working.gif"),
@@ -1603,8 +1625,8 @@ except Exception as e:
         self.root.after(500, self._update_state)
 
     # ─── 气泡队列 ──────────────────────────
-    def _enqueue(self, text, do_speak=True):
-        self._bubble_queue.append((text, do_speak))
+    def _enqueue(self, text, do_speak=True, no_particles=False):
+        self._bubble_queue.append((text, do_speak, no_particles))
         if not self._bubble_busy:
             self.root.after(0, self._next_bubble)
 
@@ -1613,9 +1635,9 @@ except Exception as e:
             self._bubble_busy = False
             return
         self._bubble_busy = True
-        text, do_speak = self._bubble_queue.pop(0)
+        text, do_speak, no_particles = self._bubble_queue.pop(0)
         if do_speak:
-            speak(text)
+            speak(text, no_particles=no_particles)
         self._bubble.show(
             text,
             on_done=lambda: self.root.after(500, self._next_bubble))
@@ -1741,6 +1763,14 @@ except Exception as e:
                 await asyncio.gather(*[_gen(t) for t in todo])
             asyncio.run(_precache_all())
             log(f"TTS 预缓存完成（{len(todo)} 条）")
+            # LRU 清理：超过 200 个文件时删除最旧的
+            max_cache = 200
+            files = sorted(_TTS_CACHE_DIR.iterdir(), key=lambda f: f.stat().st_atime)
+            if len(files) > max_cache:
+                for f in files[:len(files) - max_cache]:
+                    try: f.unlink()
+                    except: pass
+                log(f"TTS 缓存清理: {len(files) - max_cache} 个旧文件已删除")
         except Exception as e:
             log(f"TTS 预缓存异常: {e}")
 
@@ -1782,7 +1812,7 @@ except Exception as e:
             elif now.weekday() == 5:
                 extra = "今天是周六，加班辛苦啦。"
             msg = f"{greeting}呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}祝主人顺风顺水顺财神，朝朝暮暮有人疼！"
-            self.root.after(0, lambda: self._enqueue(msg))
+            self.root.after(0, lambda: self._enqueue(msg, no_particles=True))
 
         # 延迟 3s 让思考动画先播放
         def _delayed():
@@ -1821,6 +1851,25 @@ except Exception as e:
             log(f"自启注册失败: {e}")
 
     _schedule_win = None  # 日程窗口单例
+
+    def _set_cat_size(self, new_size, pop=None):
+        """应用新的猫窗大小"""
+        if pop:
+            try: pop.destroy()
+            except: pass
+        if new_size == self._cat_size:
+            return
+        self._cat_size = new_size
+        self.dm.data["cat_size"] = new_size
+        self.dm.save()
+        # 重新加载帧
+        self._load_frames()
+        # 调整窗口大小
+        cf = self._win.frame()
+        sz = float(new_size)
+        new_frame = AppKit.NSMakeRect(
+            cf.origin.x, cf.origin.y, sz, sz)
+        self._win.setFrame_display_animate_(new_frame, True, True)
 
     def _open_schedule(self):
         _play_sfx("open")
@@ -2391,7 +2440,9 @@ class ScheduleWindow(tk.Toplevel):
             if not sel: return
             item = dmap.get(lb.get(sel[0]).strip(), {})
             self.v_title.set(item.get("title", ""))
-            self.v_time.set(item.get("start_time", "09:00"))
+            h, m = item.get("start_time", "09:00").split(":")
+            self.v_hour.set(h)
+            self.v_min.set(m)
             self.v_dur.set(str(item.get("duration", 30)))
             pop.destroy()
             self._switch_tab("schedule")

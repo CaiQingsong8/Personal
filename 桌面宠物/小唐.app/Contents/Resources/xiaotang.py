@@ -1123,7 +1123,7 @@ class XiaoTang:
                         extra = "终于周五了，马上就可以休息了。"
                     elif now.weekday() == 5:
                         extra = "今天是周六，加班辛苦啦。"
-                    msg = f"{time_word}好呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}主人要天天开心，你会越来越顺！"
+                    msg = f"{time_word}好呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}祝主人顺风顺水顺财神，朝朝暮暮有人疼！"
                     self._enqueue(msg)
                 rows.append(("💬 打招呼", _greeting))
 
@@ -1781,7 +1781,7 @@ except Exception as e:
                 extra = "终于周五了，马上就可以休息了。"
             elif now.weekday() == 5:
                 extra = "今天是周六，加班辛苦啦。"
-            msg = f"{greeting}呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}主人要天天开心，你会越来越顺！"
+            msg = f"{greeting}呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}祝主人顺风顺水顺财神，朝朝暮暮有人疼！"
             self.root.after(0, lambda: self._enqueue(msg))
 
         # 延迟 3s 让思考动画先播放

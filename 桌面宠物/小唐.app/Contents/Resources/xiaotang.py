@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-小唐桌面宠物 v5.1.0
+小唐桌面宠物 v6.0.0
 兼容：macOS Ventura 13+ / Python 3.9+ / pyobjc 8.x+
 核心策略：
   - 所有 AppKit API 调用全部 try-except 隔离，单点失败不崩溃
@@ -932,7 +932,7 @@ class XiaoTang:
         "时间过得好快，注意休息哟~",
     ]
     def __init__(self):
-        log("=== 小唐 v5.1.0 启动 ===")
+        log("=== 小唐 v6.0.0 启动 ===")
 
         # 全部属性先初始化，防止任何地方 AttributeError
         self._state          = "idle"

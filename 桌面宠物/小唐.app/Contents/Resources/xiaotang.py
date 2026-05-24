@@ -363,41 +363,11 @@ def _add_particles(text):
         text = text + p
     return text
 
-# ─── 语音播放队列（逐个播放，Event 唤醒零延迟）──
-# 空闲时直接播放缓存语音，不排队；忙时排队等候
+# ─── 语音播放队列（全部走队列，Event 唤醒零延迟，避免重叠）──
 _voice_queue = []
 _voice_queue_lock = threading.Lock()
 _voice_queue_event = threading.Event()
 _voice_worker_started = False
-_voice_busy = False
-_voice_busy_lock = threading.Lock()
-
-def _is_voice_busy():
-    with _voice_busy_lock:
-        return _voice_busy
-
-def _set_voice_busy(val):
-    global _voice_busy
-    with _voice_busy_lock:
-        _voice_busy = val
-
-def _play_voice_file(path):
-    """播放语音文件，完成后释放忙标志"""
-    _set_voice_busy(True)
-    try:
-        subprocess.run(["afplay", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except:
-        pass
-    _set_voice_busy(False)
-
-def _try_play_direct(path):
-    """队列空闲时直接播放，返回 True。队列忙时返回 False 不走队列。"""
-    with _voice_busy_lock:
-        if _voice_busy or _voice_queue:
-            return False
-        _voice_busy = True
-    threading.Thread(target=_play_voice_file, args=(path,), daemon=True).start()
-    return True
 
 def _enqueue_voice(path):
     """将语音加入播放队列，由后台线程逐个播放"""
@@ -419,7 +389,10 @@ def _voice_worker():
                 if _voice_queue:
                     path = _voice_queue.pop(0)
             if path:
-                _play_voice_file(path)
+                try:
+                    subprocess.run(["afplay", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception as _e:
+                    log(f"afplay 失败: {_e}")
             else:
                 break
 
@@ -446,9 +419,8 @@ def speak(text):
         cache_path = _tts_cache_path(clean, voice, rate_str)
 
         if cache_path.exists():
-            # 缓存命中：空闲时直接播放零延迟，忙时排队等待
-            if not _try_play_direct(cache_path):
-                _enqueue_voice(cache_path)
+            # 缓存命中 → 加入队列播放（Event 唤醒微秒级，不设直接播放避免竞态重叠）
+            _enqueue_voice(cache_path)
         else:
             # 未缓存 → 后台生成，生成后加入播放队列
             def _gen_play():

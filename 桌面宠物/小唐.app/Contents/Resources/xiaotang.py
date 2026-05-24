@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-小唐桌面宠物 v5.0.4
+小唐桌面宠物 v5.1.0
 兼容：macOS Ventura 13+ / Python 3.9+ / pyobjc 8.x+
 核心策略：
   - 所有 AppKit API 调用全部 try-except 隔离，单点失败不崩溃
@@ -827,43 +827,6 @@ class DataManager:
         self.save()
         self._sync_voice()
 
-    def import_data(self, filepath):
-        """导入JSON数据文件，合并到当前数据"""
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                new_data = json.load(f)
-            # 兼容两种格式：列表（导出格式）或字典（完整数据格式）
-            if isinstance(new_data, list):
-                # 列表格式：直接是日程列表
-                schedules = new_data
-                new_data = {"schedules": schedules}
-            elif not isinstance(new_data, dict):
-                return False, "文件格式错误"
-            # 合并日程（去重：同id不重复添加）
-            old_ids = {s["id"] for s in self.data.get("schedules", [])}
-            new_count = 0
-            for s in new_data.get("schedules", []):
-                if s.get("id") and s["id"] not in old_ids:
-                    self.data.setdefault("schedules", []).append(s)
-                    new_count += 1
-            # 合并历史
-            self.data.setdefault("history", []).extend(new_data.get("history", []))
-            # 合并笔记
-            self.data.setdefault("notes", {}).update(new_data.get("notes", {}))
-            # 合并模板
-            old_titles = {t["title"] for t in self.data.get("templates", [])}
-            for t in new_data.get("templates", []):
-                if t.get("title") and t["title"] not in old_titles:
-                    self.data.setdefault("templates", []).append(t)
-            # 合并事件计数
-            for k, v in new_data.get("event_counts", {}).items():
-                self.data.setdefault("event_counts", {})[k] = \
-                    self.data["event_counts"].get(k, 0) + v
-            self.save()
-            return True, f"导入成功！新增 {new_count} 条日程"
-        except Exception as e:
-            return False, f"导入失败: {e}"
-
     def save(self):
         try:
             with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -958,7 +921,7 @@ class XiaoTang:
         "时间过得好快，注意休息哟~",
     ]
     def __init__(self):
-        log("=== 小唐 v5.0.4 启动 ===")
+        log("=== 小唐 v5.1.0 启动 ===")
 
         # 全部属性先初始化，防止任何地方 AttributeError
         self._state          = "idle"
@@ -2126,14 +2089,14 @@ class ScheduleWindow(tk.Toplevel):
         psb.pack(side="right", fill="y")
 
         br = tk.Frame(p, bg="#FDF6EE"); br.pack(pady=(4, 12))
-        for txt, cmd, bg, fg in [
-            ("💾 导出 TXT",  lambda: self._h_export("txt"),  "#87CEEB", "black"),
-            ("📊 导出 JSON", lambda: self._h_export("json"), "#B0E0E6", "black"),
-            ("📥 导入 JSON", self._h_import, "#90EE90", "black"),
+        for txt, cmd, bg in [
+            ("📤 导出", self._h_export, "#87CEEB"),
+            ("📋 同步备忘录", self._sync_to_notes, "#B0E0E6"),
+            ("📥 导入", self._h_import, "#90EE90"),
         ]:
             tk.Button(br, text=txt,
                       command=cmd,
-                      bg=bg, fg=fg,
+                      bg=bg, fg="black",
                       font=("PingFang SC", 13, "bold"),
                       relief="flat", cursor="arrow").pack(side="left", padx=10)
 
@@ -2449,52 +2412,168 @@ class ScheduleWindow(tk.Toplevel):
         self.h_prev.insert("1.0", text)
         self.h_prev.configure(state="disabled")
 
-    def _h_export(self, fmt):
+    def _h_export(self):
         pet_name = self.dm.data.get("pet_name", "小唐")
         d0, d1 = self.hv_from.get().strip(), self.hv_to.get().strip()
-        if fmt == "txt":
-            fp = self._fd.asksaveasfilename(
-                defaultextension=".txt",
-                filetypes=[("文本", "*.txt")],
-                initialfile=f"{pet_name}日程_{d0}_{d1}.txt",
-                parent=self)
-            if fp:
-                _play_sfx("save")
-                Path(fp).write_text(
-                    self.dm.export_range(d0, d1), encoding="utf-8")
-                self._mb.showinfo("✅ 导出成功", f"已保存：\n{fp}", parent=self)
-        else:
-            fp = self._fd.asksaveasfilename(
-                defaultextension=".json",
-                filetypes=[("JSON", "*.json")],
-                initialfile=f"{pet_name}日程_{d0}_{d1}.json",
-                parent=self)
-            if fp:
-                _play_sfx("save")
-                data = self.dm.schedules_in_range(d0, d1)
-                for s in data:
-                    s["note"] = self.dm.get_note(s["date"])
-                Path(fp).write_text(
-                    json.dumps(data, ensure_ascii=False, indent=2),
-                    encoding="utf-8")
-                self._mb.showinfo("✅ 导出成功", f"已保存：\n{fp}", parent=self)
+        fp = self._fd.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("文本", "*.txt")],
+            initialfile=f"{pet_name}日程_{d0}_{d1}.txt",
+            parent=self)
+        if fp:
+            _play_sfx("save")
+            content = self.dm.export_range(d0, d1)
+            Path(fp).write_text(content, encoding="utf-8")
+            self._mb.showinfo("✅ 导出成功", f"已保存：\n{fp}", parent=self)
+
+    def _sync_to_notes(self):
+        """将当前日期范围的日程同步到 Apple 备忘录（HTML 格式，解决中文乱码）"""
+        pet_name = self.dm.data.get("pet_name", "小唐")
+        d0, d1 = self.hv_from.get().strip(), self.hv_to.get().strip()
+        try:
+            content = self.dm.export_range(d0, d1)
+            if not content.strip():
+                self._mb.showwarning("提示", "该日期范围内没有日程", parent=self)
+                return
+            title = f"{pet_name}日程 {d0}~{d1}"
+            # 转 HTML（Apple Notes 原生支持 HTML，保留 ✅⬜▸ 原始符号）
+            html_body = content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            html_body = "<html><body style='font-family:Menlo;font-size:12px'>" + \
+                        html_body.replace("\n", "<br>") + \
+                        "</body></html>"
+            tmp = Path("/tmp/.xiaotang_sync_notes.html")
+            tmp.write_text(html_body, encoding="utf-8")
+            script = (
+                f'set noteTitle to "{title}"\n'
+                f'tell application "Notes"\n'
+                f'    set noteHtml to (do shell script "cat /tmp/.xiaotang_sync_notes.html")\n'
+                f'    make new note with properties {{name:noteTitle, body:noteHtml}}\n'
+                f'end tell'
+            )
+            subprocess.run(["osascript", "-e", script],
+                           capture_output=True, text=True, timeout=10)
+            _play_sfx("save")
+            self._mb.showinfo("✅ 同步成功", "已同步到备忘录", parent=self)
+        except Exception as e:
+            log(f"同步备忘录失败: {e}")
+            self._mb.showerror("同步失败", f"请检查备忘录应用是否打开\n{e}", parent=self)
+
+    @staticmethod
+    def _parse_import_items(fp):
+        """解析导入文件，返回 (items列表, min_date, max_date)"""
+        ext = Path(fp).suffix.lower()
+        content = Path(fp).read_text(encoding="utf-8")
+        items = []
+
+        if ext == ".json" or ext == "":
+            try:
+                data = json.loads(content)
+                src = data if isinstance(data, list) else data.get("schedules", [])
+                for s in src:
+                    if s.get("date") and s.get("title"):
+                        items.append({
+                            "date": s["date"],
+                            "start_time": s.get("start_time", "09:00"),
+                            "title": s["title"],
+                            "duration": s.get("duration", 30),
+                            "completed": s.get("completed", False),
+                        })
+                if items:
+                    return items
+            except:
+                pass
+            if ext == ".json":
+                return [], None, None
+
+        # TXT 解析
+        cur_date = None
+        for line in content.strip().split("\n"):
+            line = line.strip()
+            if line.startswith("▸"):
+                cur_date = line[1:].strip()
+            elif cur_date and line and line[0] in "⬜✅":
+                m = re.match(r'[⬜✅]\s+(\d{2}:\d{2})\s+(.+?)\s+\((\d+)min\)', line)
+                if m:
+                    items.append({
+                        "date": cur_date,
+                        "start_time": m.group(1),
+                        "title": m.group(2).strip(),
+                        "duration": int(m.group(3)),
+                        "completed": line[0] == "✅",
+                    })
+        if not items:
+            return [], None, None
+        dates = sorted(set(it["date"] for it in items if it.get("date")))
+        return items, dates[0], dates[-1]
 
     def _h_import(self):
-        """导入JSON数据"""
+        """导入数据，带日期范围保护和冲突选项"""
         fp = self._fd.askopenfilename(
-            filetypes=[("JSON", "*.json")],
-            title="选择要导入的JSON文件",
+            filetypes=[("日程文件", "*.txt *.json"), ("文本", "*.txt"), ("JSON", "*.json")],
+            title="选择要导入的文件（支持 TXT / JSON）",
             parent=self)
         if not fp:
             return
-        ok, msg = self.dm.import_data(fp)
-        if ok:
-            _play_sfx("add")
-            self._mb.showinfo("✅ 导入成功", msg, parent=self)
-            self._refresh()
-            self._title_combo["values"] = [t["title"] for t in self.dm.data.get("templates", [])]
+
+        items, d0, d1 = self._parse_import_items(fp)
+        if not items or not d0:
+            self._mb.showerror("导入失败", "无法解析文件内容，请确认格式正确", parent=self)
+            return
+
+        choice = self._mb.askyesnocancel(
+            "导入选项",
+            f"检测到日期范围：{d0} ~ {d1}\n"
+            f"共 {len(items)} 条日程\n\n"
+            f"「是」= 保留已有，仅新增\n"
+            f"「否」= 覆盖此范围内所有日程\n"
+            f"「取消」= 取消导入",
+            parent=self)
+
+        if choice is None:
+            return  # 取消
+
+        # 只操作 d0~d1 范围内的日程
+        old = self.dm.data.get("schedules", [])
+        if choice is False:
+            # 覆盖：删除范围内所有日程，再添加
+            self.dm.data["schedules"] = [s for s in old if not (d0 <= s["date"] <= d1)]
         else:
-            self._mb.showerror("导入失败", msg, parent=self)
+            # 保留已有：构建已有 key 集合 (date|start_time|title)
+            existing = {(s["date"], s["start_time"], s["title"])
+                        for s in old if d0 <= s["date"] <= d1}
+
+        count = 0
+        imported_items = []
+        for it in items:
+            if choice is True:
+                # 保留已有：跳过已存在的
+                key = (it["date"], it["start_time"], it["title"])
+                if key in existing:
+                    continue
+            imported_items.append(it)
+
+        # 批量添加（避免多次保存）
+        for it in imported_items:
+            new_item = self.dm.add_schedule(
+                it["title"], it["start_time"], it["duration"],
+                date=it["date"])
+            # 保留完成状态
+            if it.get("completed"):
+                new_item["completed"] = True
+                count_done = sum(1 for s in self.dm.data["schedules"]
+                                 if s.get("completed"))
+            count += 1
+        if count:
+            self.dm.save()
+
+        _play_sfx("add")
+        self._mb.showinfo("✅ 导入成功",
+            f"日期范围：{d0} ~ {d1}\n"
+            f"新增 {count} 条，"
+            f"{'跳过 ' + str(len(items) - count) + ' 条重复' if choice and count < len(items) else ''}",
+            parent=self)
+        self._refresh()
+        self._title_combo["values"] = [t["title"] for t in self.dm.data.get("templates", [])]
 
 # ══════ 入口 ══════
 if __name__ == "__main__":

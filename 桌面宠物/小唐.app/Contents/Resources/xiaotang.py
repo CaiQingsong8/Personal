@@ -1153,7 +1153,10 @@ class XiaoTang:
                         holiday = _get_holiday()
                         holiday_text = f"，{holiday}快乐" if holiday else ""
                         try:
-                            weather = get_weather(self.dm.data.get("city", "深圳"))
+                            city = self.dm.data.get("city", "深圳")
+                            weather = get_weather(city)
+                            if "深圳" not in city:
+                                weather = f"（{city}）{weather}"
                         except:
                             weather = "天气未知"
                         extra = ""
@@ -1849,7 +1852,10 @@ except Exception as e:
             try:
                 self.dm.data["city"] = _detect_city()
                 self.dm.save()
-                weather = get_weather(self.dm.data.get("city", "深圳"))
+                city = self.dm.data.get("city", "深圳")
+                weather = get_weather(city)
+                if "深圳" not in city:
+                    weather = f"（{city}）{weather}"
             except:
                 weather = "天气未知"
             holiday = _get_holiday()

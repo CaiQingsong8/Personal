@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-小唐桌面宠物 v6.1.0
+小唐桌面宠物 v6.2.0
 兼容：macOS Ventura 13+ / Python 3.9+ / pyobjc 8.x+
 核心策略：
   - 所有 AppKit API 调用全部 try-except 隔离，单点失败不崩溃
@@ -318,6 +318,38 @@ def _translate_weather(text):
                     return f"{chn} {num}摄氏度"
             return chn
     return text
+
+def _detect_city():
+    """通过 IP 自动检测所在城市（含区/县）"""
+    try:
+        r = subprocess.run(
+            ["curl", "-s", "-m", "5", "http://ip-api.com/json/?lang=zh-CN&fields=status,city,district,lat,lon"],
+            capture_output=True, text=True, timeout=8)
+        data = json.loads(r.stdout)
+        if data.get("status") == "success":
+            city = data.get("city", "深圳")
+            district = data.get("district", "")
+            if district:
+                return f"{city}{district}"
+            return city
+        # 尝试用坐标反查高德 API 获取区级
+        lat, lon = data.get("lat"), data.get("lon")
+        if lat and lon:
+            rev = subprocess.run(
+                ["curl", "-s", "-m", "5",
+                 f"https://restapi.amap.com/v3/geocode/regeo?output=json&location={lon},{lat}&key=9a3f1e24f6b384a0064c1ba5b45fca5d&radius=1000&extensions=all"],
+                capture_output=True, text=True, timeout=8)
+            rev_data = json.loads(rev.stdout)
+            if rev_data.get("status") == "1":
+                addr = rev_data.get("regeocode", {}).get("addressComponent", {})
+                c = addr.get("city", "") or addr.get("province", "深圳")
+                d = addr.get("district", "")
+                if d:
+                    return f"{c}{d}"
+                return c
+    except:
+        pass
+    return "深圳"
 
 # ══════ 语音 ══════
 # 默认人声
@@ -792,6 +824,7 @@ class DataManager:
             "voice": {"name": _DEFAULT_VOICE, "rate": 240, "volume": 60},
             "pet_name": "小唐",
             "cat_size": 128,
+            "city": "深圳",
         }
         self._load()
         # 强制重置模板为最新默认值
@@ -933,7 +966,7 @@ class XiaoTang:
         "时间过得好快，注意休息哟~",
     ]
     def __init__(self):
-        log("=== 小唐 v6.1.0 启动 ===")
+        log("=== 小唐 v6.2.0 启动 ===")
 
         # 全部属性先初始化，防止任何地方 AttributeError
         self._state          = "idle"
@@ -972,6 +1005,7 @@ class XiaoTang:
         threading.Thread(target=self._random_chat_loop, daemon=True).start()
         threading.Thread(target=self._auto_sync_loop,   daemon=True).start()
         threading.Thread(target=self._precache_tts,    daemon=True).start()
+        threading.Thread(target=self._detect_city_bg, daemon=True).start()
 
         self.root.after(500,  self._update_state)
         self.root.after(500,  self._poll_clicks)
@@ -1109,6 +1143,8 @@ class XiaoTang:
                 # 💬 打招呼（日期+天气+节日）
                 def _greeting():
                     def _bg():
+                        self.dm.data["city"] = _detect_city()
+                        self.dm.save()
                         now = datetime.datetime.now()
                         ds = now.strftime("%Y年%m月%d日")
                         wds = ["星期一","星期二","星期三","星期四","星期五","星期六","星期日"]
@@ -1118,7 +1154,7 @@ class XiaoTang:
                         holiday = _get_holiday()
                         holiday_text = f"，{holiday}快乐" if holiday else ""
                         try:
-                            weather = get_weather("深圳")
+                            weather = get_weather(self.dm.data.get("city", "深圳"))
                         except:
                             weather = "天气未知"
                         extra = ""
@@ -1245,7 +1281,9 @@ class XiaoTang:
                 tk.Button(bf, text="✕ 退出", command=pop.destroy,
                           bg="#333", fg="#999", font=("PingFang SC", 11),
                           relief="flat").pack(side="right")
-            rows.append(("🐱 体积  🔊 语音", _voice_settings))
+            size_names = {96: "mini", 128: "小", 192: "中", 256: "大", 384: "超大"}
+            sname = size_names.get(self._cat_size, str(self._cat_size))
+            rows.append((f"🐱 {sname}({self._cat_size})  🔊 {vn}", _voice_settings))
 
             # 今日待办（已完成折叠）
             items = self.dm.today_schedules()
@@ -1778,6 +1816,15 @@ except Exception as e:
     def _auto_sync_loop(self):
         pass
 
+    # ─── 城市检测 ──────────────────────────
+    def _detect_city_bg(self):
+        """后台检测城市并保存"""
+        city = _detect_city()
+        if city:
+            self.dm.data["city"] = city
+            self.dm.save()
+            log(f"检测到城市: {city}")
+
     # ─── 早间问候 ──────────────────────────
     def _morning_greeting(self):
         if hasattr(self, '_greeting_done'):
@@ -1801,7 +1848,9 @@ except Exception as e:
 
         def _do():
             try:
-                weather = get_weather("深圳")
+                self.dm.data["city"] = _detect_city()
+                self.dm.save()
+                weather = get_weather(self.dm.data.get("city", "深圳"))
             except:
                 weather = "天气未知"
             holiday = _get_holiday()

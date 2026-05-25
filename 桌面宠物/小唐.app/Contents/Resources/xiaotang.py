@@ -283,7 +283,6 @@ def get_weather(city="深圳"):
                 capture_output=True, text=True, timeout=10)
             out = r.stdout.strip()
             if out and len(out) < 50 and "Unknown" not in out and "ERROR" not in out:
-                # 翻译成中文
                 out = _translate_weather(out)
                 return _weather_emoji(out) + " " + out
         except:

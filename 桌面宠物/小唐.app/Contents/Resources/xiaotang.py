@@ -318,34 +318,24 @@ def _translate_weather(text):
             return chn
     return text
 
+_CITY_MAP = {
+    "Shenzhen": "深圳", "Guangzhou": "广州", "Beijing": "北京",
+    "Shanghai": "上海", "Hangzhou": "杭州", "Chengdu": "成都",
+    "Wuhan": "武汉", "Nanjing": "南京", "Changsha": "长沙",
+    "Dongguan": "东莞", "Foshan": "佛山", "Zhuhai": "珠海",
+    "Zhongshan": "中山", "Huizhou": "惠州", "Suzhou": "苏州",
+    "Tianjin": "天津", "Chongqing": "重庆",
+}
+
 def _detect_city():
-    """通过 IP 自动检测所在城市（含区/县）"""
+    """通过 ipinfo.io 自动检测所在城市"""
     try:
         r = subprocess.run(
-            ["curl", "-s", "-m", "5", "http://ip-api.com/json/?lang=zh-CN&fields=status,city,district,lat,lon"],
+            ["curl", "-s", "-m", "5", "https://ipinfo.io/json"],
             capture_output=True, text=True, timeout=8)
         data = json.loads(r.stdout)
-        if data.get("status") == "success":
-            city = data.get("city", "深圳")
-            district = data.get("district", "")
-            if district:
-                return f"{city}{district}"
-            return city
-        # 尝试用坐标反查高德 API 获取区级
-        lat, lon = data.get("lat"), data.get("lon")
-        if lat and lon:
-            rev = subprocess.run(
-                ["curl", "-s", "-m", "5",
-                 f"https://restapi.amap.com/v3/geocode/regeo?output=json&location={lon},{lat}&key=9a3f1e24f6b384a0064c1ba5b45fca5d&radius=1000&extensions=all"],
-                capture_output=True, text=True, timeout=8)
-            rev_data = json.loads(rev.stdout)
-            if rev_data.get("status") == "1":
-                addr = rev_data.get("regeocode", {}).get("addressComponent", {})
-                c = addr.get("city", "") or addr.get("province", "深圳")
-                d = addr.get("district", "")
-                if d:
-                    return f"{c}{d}"
-                return c
+        if data.get("city"):
+            return _CITY_MAP.get(data["city"], data["city"])
     except:
         pass
     return "深圳"
@@ -1156,7 +1146,9 @@ class XiaoTang:
                             city = self.dm.data.get("city", "深圳")
                             weather = get_weather(city)
                             if "深圳" not in city:
-                                weather = f"（{city}）{weather}"
+                                weather = f"{city}天气{weather}"
+                            else:
+                                weather = f"天气{weather}"
                         except:
                             weather = "天气未知"
                         extra = ""
@@ -1164,7 +1156,7 @@ class XiaoTang:
                             extra = "终于周五了，马上就可以休息了。"
                         elif now.weekday() == 5:
                             extra = "今天是周六，加班辛苦啦。"
-                        msg = f"{time_word}好呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}祝主人顺风顺水顺财神，朝朝暮暮有人疼！"
+                        msg = f"{time_word}好呀！今天是{ds}{wd}{holiday_text}。{weather}。{extra}祝主人顺风顺水顺财神，朝朝暮暮有人疼！"
                         self.root.after(0, lambda: self._enqueue(msg, no_particles=True))
                     threading.Thread(target=_bg, daemon=True).start()
                 rows.append(("💬 打招呼", _greeting))
@@ -1855,7 +1847,9 @@ except Exception as e:
                 city = self.dm.data.get("city", "深圳")
                 weather = get_weather(city)
                 if "深圳" not in city:
-                    weather = f"（{city}）{weather}"
+                    weather = f"{city}天气{weather}"
+                else:
+                    weather = f"天气{weather}"
             except:
                 weather = "天气未知"
             holiday = _get_holiday()
@@ -1865,7 +1859,7 @@ except Exception as e:
                 extra = "终于周五了，马上就可以休息了。"
             elif now.weekday() == 5:
                 extra = "今天是周六，加班辛苦啦。"
-            msg = f"{greeting}呀！今天是{ds}{wd}{holiday_text}。天气{weather}。{extra}祝主人顺风顺水顺财神，朝朝暮暮有人疼！"
+            msg = f"{greeting}呀！今天是{ds}{wd}{holiday_text}。{weather}。{extra}祝主人顺风顺水顺财神，朝朝暮暮有人疼！"
             self.root.after(0, lambda: self._enqueue(msg, no_particles=True))
 
         # 延迟 3s 让思考动画先播放

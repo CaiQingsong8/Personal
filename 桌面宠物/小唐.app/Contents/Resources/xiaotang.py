@@ -273,50 +273,46 @@ def _weather_emoji(desc):
             return em
     return "🌤"
 
-def get_weather(city="深圳"):
-    import urllib.parse
-    url = f"https://wttr.in/{urllib.parse.quote(city)}?format=%C+%t&lang=zh"
+_WMO_CODES = {
+    0: ("晴天", "☀️"), 1: ("大部晴朗", "🌤"), 2: ("多云", "⛅️"), 3: ("阴天", "☁️"),
+    45: ("雾", "🌫"), 48: ("雾凇", "🌫"),
+    51: ("毛毛雨", "🌦"), 53: ("毛毛雨", "🌦"), 55: ("毛毛雨", "🌦"),
+    61: ("小雨", "🌧"), 63: ("中雨", "🌧"), 65: ("大雨", "🌧"),
+    80: ("阵雨", "🌦"), 81: ("阵雨", "🌦"), 82: ("大阵雨", "🌦"),
+    95: ("雷暴", "⛈"), 96: ("雷暴加冰雹", "⛈"), 99: ("强雷暴加冰雹", "⛈"),
+}
+
+def get_weather(lat, lon):
+    """用 Open-Meteo 小时预报获取天气（取离当前最近的小时）"""
+    import datetime
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,weather_code&forecast_hours=3&timezone=Asia%2FShanghai"
     for _ in range(2):
         try:
             r = subprocess.run(
-                ["curl", "-s", "-m", "6", "-L", url],
+                ["curl", "-s", "-m", "6", url],
                 capture_output=True, text=True, timeout=10)
-            out = r.stdout.strip()
-            if out and len(out) < 50 and "Unknown" not in out and "ERROR" not in out:
-                out = _translate_weather(out)
-                return _weather_emoji(out) + " " + out
+            data = json.loads(r.stdout)
+            hourly = data.get("hourly", {})
+            times = hourly.get("time", [])
+            temps = hourly.get("temperature_2m", [])
+            codes = hourly.get("weather_code", [])
+            if not times:
+                continue
+            now = datetime.datetime.now()
+            best = 0
+            for i, t in enumerate(times):
+                dt = datetime.datetime.fromisoformat(t)
+                if abs((now - dt).total_seconds()) < abs((now - datetime.datetime.fromisoformat(times[best])).total_seconds()):
+                    best = i
+            temp = temps[best]
+            wc = codes[best]
+            if temp is not None and wc is not None:
+                desc, emoji = _WMO_CODES.get(wc, ("未知", "🌤"))
+                return f"{emoji} {desc} {int(temp)}摄氏度"
         except:
             pass
         time.sleep(1)
     return "🌤 天气未知"
-
-def _translate_weather(text):
-    """将英文天气翻译成中文"""
-    t = text.lower()
-    mapping = [
-        ("thunderstorm", "雷暴"), ("thunder", "雷阵雨"),
-        ("heavy rain", "大雨"), ("light rain", "小雨"), ("moderate rain", "中雨"),
-        ("patchy rain", "阵雨"), ("drizzle", "毛毛雨"), ("rain", "雨"),
-        ("heavy snow", "大雪"), ("light snow", "小雪"), ("snow", "雪"),
-        ("sleet", "雨夹雪"),
-        ("clear", "晴天"), ("sunny", "晴天"),
-        ("partly cloudy", "多云"), ("cloudy", "阴天"), ("overcast", "阴天"),
-        ("fog", "雾"), ("mist", "薄雾"), ("haze", "霾"),
-        ("blizzard", "暴风雪"), ("windy", "大风"),
-    ]
-    for eng, chn in mapping:
-        if eng in t:
-            import re
-            temp_match = re.search(r'([+-]?\d+)°?([CcFf])?', text)
-            if temp_match:
-                sign = temp_match.group(1)[0] if temp_match.group(1)[0] in "+-" else ""
-                num = temp_match.group(1).lstrip("+-")
-                if sign == "-":
-                    return f"{chn} 零下{num}摄氏度"
-                else:
-                    return f"{chn} {num}摄氏度"
-            return chn
-    return text
 
 _CITY_MAP = {
     "Shenzhen": "深圳", "Guangzhou": "广州", "Beijing": "北京",
@@ -328,17 +324,22 @@ _CITY_MAP = {
 }
 
 def _detect_city():
-    """通过 ipinfo.io 自动检测所在城市"""
+    """通过 ipinfo.io 自动检测所在城市和坐标"""
     try:
         r = subprocess.run(
             ["curl", "-s", "-m", "5", "https://ipinfo.io/json"],
             capture_output=True, text=True, timeout=8)
         data = json.loads(r.stdout)
         if data.get("city"):
-            return _CITY_MAP.get(data["city"], data["city"])
+            city = _CITY_MAP.get(data["city"], data["city"])
+            loc = data.get("loc", "")
+            if loc and "," in loc:
+                lat, lon = loc.split(",")
+                return city, lat.strip(), lon.strip()
+            return city, None, None
     except:
         pass
-    return "深圳"
+    return "深圳", None, None
 
 # ══════ 语音 ══════
 # 默认人声
@@ -1132,7 +1133,11 @@ class XiaoTang:
                 # 💬 打招呼（日期+天气+节日）
                 def _greeting():
                     def _bg():
-                        self.dm.data["city"] = _detect_city()
+                        city, lat, lon = _detect_city()
+                        self.dm.data["city"] = city
+                        if lat and lon:
+                            self.dm.data["lat"] = lat
+                            self.dm.data["lon"] = lon
                         self.dm.save()
                         now = datetime.datetime.now()
                         ds = now.strftime("%Y年%m月%d日")
@@ -1143,8 +1148,7 @@ class XiaoTang:
                         holiday = _get_holiday()
                         holiday_text = f"，{holiday}快乐" if holiday else ""
                         try:
-                            city = self.dm.data.get("city", "深圳")
-                            weather = get_weather(city)
+                            weather = get_weather(lat or self.dm.data.get("lat"), lon or self.dm.data.get("lon"))
                             if "深圳" not in city:
                                 weather = f"{city}天气{weather}"
                             else:
@@ -1813,9 +1817,12 @@ except Exception as e:
     # ─── 城市检测 ──────────────────────────
     def _detect_city_bg(self):
         """后台检测城市并保存"""
-        city = _detect_city()
+        city, lat, lon = _detect_city()
         if city:
             self.dm.data["city"] = city
+            if lat and lon:
+                self.dm.data["lat"] = lat
+                self.dm.data["lon"] = lon
             self.dm.save()
             log(f"检测到城市: {city}")
 
@@ -1842,10 +1849,13 @@ except Exception as e:
 
         def _do():
             try:
-                self.dm.data["city"] = _detect_city()
+                city, lat, lon = _detect_city()
+                self.dm.data["city"] = city
+                if lat and lon:
+                    self.dm.data["lat"] = lat
+                    self.dm.data["lon"] = lon
                 self.dm.save()
-                city = self.dm.data.get("city", "深圳")
-                weather = get_weather(city)
+                weather = get_weather(lat or self.dm.data.get("lat"), lon or self.dm.data.get("lon"))
                 if "深圳" not in city:
                     weather = f"{city}天气{weather}"
                 else:

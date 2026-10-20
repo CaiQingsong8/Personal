@@ -16,6 +16,8 @@ struct CalendarDayEvent: Identifiable, Hashable {
     let startDate: Date
     let isAllDay: Bool
     let calendarTitle: String
+    let isHoliday: Bool
+    let isChecklistLinked: Bool
 
     var displayTitle: String {
         isAllDay ? title : "\(Self.timeFormatter.string(from: startDate)) \(title)"
@@ -27,6 +29,11 @@ struct CalendarDayEvent: Identifiable, Hashable {
         formatter.dateFormat = "HH:mm"
         return formatter
     }()
+}
+
+private struct CalendarDeletionSummary {
+    var removed = 0
+    var pending = 0
 }
 
 @MainActor
@@ -59,13 +66,13 @@ final class CalendarSyncService: ObservableObject {
         authorizationStatus = EKEventStore.authorizationStatus(for: .event)
         selectedCalendarID = UserDefaults.standard.string(forKey: Self.selectedCalendarKey) ?? ""
         scheduleOwnerName = UserDefaults.standard.string(forKey: Self.scheduleOwnerNameKey) ?? "小唐"
-        if authorizationStatus == .fullAccess {
+        if Self.hasEventAccess(authorizationStatus) {
             refreshCalendars()
             statusMessage = "已获得日历访问权限"
         }
     }
 
-    var isAuthorized: Bool { authorizationStatus == .fullAccess }
+    var isAuthorized: Bool { Self.hasEventAccess(authorizationStatus) }
 
     var scheduleCalendarName: String {
         let name = scheduleOwnerName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -73,13 +80,23 @@ final class CalendarSyncService: ObservableObject {
     }
 
     var authorizationDescription: String {
+        if #available(macOS 14.0, *) {
+            switch authorizationStatus {
+            case .notDetermined: return "需要你允许访问 Mac 日历"
+            case .restricted: return "系统限制了日历访问"
+            case .denied: return "日历权限已关闭"
+            case .writeOnly: return "只有写入权限，需要完整访问权限"
+            case .fullAccess, .authorized: return "已允许访问 Mac 日历"
+            @unknown default: return "日历权限状态未知"
+            }
+        }
+
         switch authorizationStatus {
         case .notDetermined: return "需要你允许访问 Mac 日历"
         case .restricted: return "系统限制了日历访问"
         case .denied: return "日历权限已关闭"
-        case .writeOnly: return "只有写入权限，需要完整访问权限"
-        case .fullAccess, .authorized: return "已允许访问 Mac 日历"
-        @unknown default: return "日历权限状态未知"
+        case .authorized: return "已允许访问 Mac 日历"
+        default: return "日历权限状态未知"
         }
     }
 
@@ -88,7 +105,12 @@ final class CalendarSyncService: ObservableObject {
         isWorking = true
         defer { isWorking = false }
         do {
-            let granted = try await eventStore.requestFullAccessToEvents()
+            let granted: Bool
+            if #available(macOS 14.0, *) {
+                granted = try await eventStore.requestFullAccessToEvents()
+            } else {
+                granted = try await eventStore.requestAccess(to: .event)
+            }
             authorizationStatus = EKEventStore.authorizationStatus(for: .event)
             if granted {
                 refreshCalendars()
@@ -136,7 +158,7 @@ final class CalendarSyncService: ObservableObject {
         monthEventsByDay[date.startOfDay] ?? []
     }
 
-    func loadMonthEvents(containing month: Date) {
+    func loadMonthEvents(containing month: Date, appStore: AppStore) {
         authorizationStatus = EKEventStore.authorizationStatus(for: .event)
         guard isAuthorized,
               let interval = Calendar.current.dateInterval(of: .month, for: month) else {
@@ -152,9 +174,42 @@ final class CalendarSyncService: ObservableObject {
         let events = eventStore.events(matching: predicate)
             .filter { $0.status != .canceled }
 
+        let tasks = appStore.tasks
+        let pendingDeletions = appStore.pendingCalendarDeletions
+        let linkedEventIdentifiers = Set(
+            tasks.compactMap(\.calendarEventIdentifier) + pendingDeletions.compactMap(\.eventIdentifier)
+        )
+        var linkedExternalIdentifiers = Set<String>()
+        for task in tasks {
+            if let calendarID = task.calendarIdentifier,
+               let externalID = task.calendarEventExternalIdentifier {
+                linkedExternalIdentifiers.insert(externalIdentifierKey(calendarID: calendarID, externalID: externalID))
+            }
+        }
+        for deletion in pendingDeletions {
+            if let calendarID = deletion.calendarIdentifier,
+               let externalID = deletion.externalIdentifier {
+                linkedExternalIdentifiers.insert(externalIdentifierKey(calendarID: calendarID, externalID: externalID))
+            }
+        }
+        var eventCountsByExternalIdentifier: [String: Int] = [:]
+        for event in events {
+            guard let externalID = event.calendarItemExternalIdentifier else { continue }
+            let key = externalIdentifierKey(calendarID: event.calendar.calendarIdentifier, externalID: externalID)
+            eventCountsByExternalIdentifier[key, default: 0] += 1
+        }
+
         var result: [Date: [CalendarDayEvent]] = [:]
         for event in events {
             guard let title = event.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty else { continue }
+            let linkedByTaskURL = taskID(in: event) != nil
+            let linkedByEventIdentifier = event.eventIdentifier.map(linkedEventIdentifiers.contains) ?? false
+            var linkedByExternalIdentifier = false
+            if let externalID = event.calendarItemExternalIdentifier {
+                let key = externalIdentifierKey(calendarID: event.calendar.calendarIdentifier, externalID: externalID)
+                linkedByExternalIdentifier = eventCountsByExternalIdentifier[key] == 1 && linkedExternalIdentifiers.contains(key)
+            }
+
             let eventStart = max(event.startDate, interval.start)
             let eventEnd = min(event.endDate, interval.end)
             let firstDay = eventStart.startOfDay
@@ -170,7 +225,9 @@ final class CalendarSyncService: ObservableObject {
                     title: title,
                     startDate: event.startDate,
                     isAllDay: event.isAllDay,
-                    calendarTitle: event.calendar.title
+                    calendarTitle: event.calendar.title,
+                    isHoliday: isHolidayCalendar(event.calendar),
+                    isChecklistLinked: linkedByTaskURL || linkedByEventIdentifier || linkedByExternalIdentifier
                 )
                 result[day, default: []].append(item)
                 day = Calendar.current.date(byAdding: .day, value: 1, to: day) ?? interval.end
@@ -179,6 +236,7 @@ final class CalendarSyncService: ObservableObject {
 
         monthEventsByDay = result.mapValues { items in
             items.sorted {
+                if $0.isHoliday != $1.isHoliday { return $0.isHoliday }
                 if $0.isAllDay != $1.isAllDay { return $0.isAllDay }
                 if $0.startDate != $1.startDate { return $0.startDate < $1.startDate }
                 return $0.title < $1.title
@@ -245,46 +303,84 @@ final class CalendarSyncService: ObservableObject {
         let events = eventStore.events(matching: predicate)
             .filter { $0.status != .canceled && !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
+        let pendingDeletions = appStore.pendingCalendarDeletions
+        let deletionSummary = syncPendingDeletions(in: appStore, events: events)
         var tasks = appStore.tasks
-        var taskIndexByEventID: [String: Int] = [:]
-        for (index, task) in tasks.enumerated() {
-            if let eventID = task.calendarEventIdentifier {
-                taskIndexByEventID[eventID] = index
-            }
-        }
 
         var added = 0
         var updated = 0
+        var conflicts = 0
+        var processed = Set<UUID>()
         let now = Date()
         for event in events {
             guard let eventID = event.eventIdentifier else { continue }
-            if let index = taskIndexByEventID[eventID] {
+            if isPendingDeletion(event, matching: pendingDeletions, among: events) { continue }
+            let sourceID = taskID(in: event)
+            let directIndex = tasks.firstIndex { task in
+                (sourceID != nil && task.id == sourceID) ||
+                task.calendarEventIdentifier == eventID
+            }
+            let externalMatches = event.calendarItemExternalIdentifier.map { externalID in
+                events.filter { $0.calendarItemExternalIdentifier == externalID &&
+                    $0.calendar.calendarIdentifier == calendar.calendarIdentifier }.count
+            } ?? 0
+            let externalTaskID = externalMatches == 1 ? appStore.tasks.first(where: { task in
+                task.calendarEventExternalIdentifier == event.calendarItemExternalIdentifier &&
+                task.calendarIdentifier == calendar.calendarIdentifier
+            })?.id : nil
+            let externalIndex = externalTaskID.flatMap { taskID in tasks.firstIndex { $0.id == taskID } }
+            let index = directIndex ?? externalIndex
+            if let index, !processed.contains(tasks[index].id) {
+                attachTaskIdentity(tasks[index].id, to: event)
+                let linkedEventID = event.eventIdentifier ?? eventID
                 tasks[index].title = event.title
                 tasks[index].notes = event.notes ?? ""
-                tasks[index].dueDate = event.startDate
+                tasks[index].dueDate = event.isAllDay ? event.startDate.startOfDay : event.startDate
                 tasks[index].hasSpecificTime = !event.isAllDay
-                tasks[index].calendarDurationSeconds = max(60, event.endDate.timeIntervalSince(event.startDate))
+                tasks[index].calendarDurationSeconds = event.isAllDay
+                    ? nil : max(60, event.endDate.timeIntervalSince(event.startDate))
+                tasks[index].calendarAllDaySpanDays = event.isAllDay ? allDaySpan(for: event) : nil
+                tasks[index].calendarEventIdentifier = linkedEventID
+                tasks[index].calendarEventExternalIdentifier = event.calendarItemExternalIdentifier
+                tasks[index].calendarIdentifier = calendar.calendarIdentifier
                 tasks[index].calendarSyncedAt = now
+                processed.insert(tasks[index].id)
                 updated += 1
+            } else if index != nil {
+                conflicts += 1
+            } else if externalMatches > 1 && appStore.tasks.contains(where: {
+                $0.calendarEventExternalIdentifier == event.calendarItemExternalIdentifier &&
+                $0.calendarIdentifier == calendar.calendarIdentifier
+            }) {
+                // A shared series identifier cannot safely identify one occurrence.
+                conflicts += 1
             } else {
+                let taskID = sourceID ?? UUID()
+                attachTaskIdentity(taskID, to: event)
+                let linkedEventID = event.eventIdentifier ?? eventID
                 let task = TodoItem(
+                    id: taskID,
                     title: event.title,
                     notes: event.notes ?? "",
-                    dueDate: event.startDate,
+                    dueDate: event.isAllDay ? event.startDate.startOfDay : event.startDate,
                     hasSpecificTime: !event.isAllDay,
-                    calendarDurationSeconds: max(60, event.endDate.timeIntervalSince(event.startDate)),
-                    calendarEventIdentifier: eventID,
+                    calendarDurationSeconds: event.isAllDay
+                        ? nil : max(60, event.endDate.timeIntervalSince(event.startDate)),
+                    calendarAllDaySpanDays: event.isAllDay ? allDaySpan(for: event) : nil,
+                    calendarEventIdentifier: linkedEventID,
+                    calendarEventExternalIdentifier: event.calendarItemExternalIdentifier,
+                    calendarIdentifier: calendar.calendarIdentifier,
                     calendarSyncedAt: now,
                     localUpdatedAt: now
                 )
                 tasks.append(task)
-                taskIndexByEventID[eventID] = tasks.count - 1
+                processed.insert(task.id)
                 added += 1
             }
         }
 
         appStore.applyCalendarTasks(tasks)
-        statusMessage = "已从“\(calendar.title)”导入：新增 \(added)，更新 \(updated)"
+        statusMessage = "已从“\(calendar.title)”导入：新增 \(added)，更新 \(updated)，删除 \(deletionSummary.removed)，待重试 \(deletionSummary.pending)，冲突 \(conflicts)"
     }
 
     func exportToCalendar(from appStore: AppStore) async {
@@ -297,37 +393,80 @@ final class CalendarSyncService: ObservableObject {
         isWorking = true
         defer { isWorking = false }
 
+        statusMessage = "正在检查已关联的日历事项…"
+        await Task.yield()
+
         let range = transferRange
+        let predicate = eventStore.predicateForEvents(withStart: range.start, end: range.end, calendars: nil)
+        let events = eventStore.events(matching: predicate).filter { $0.status != .canceled }
+        let deletionSummary = syncPendingDeletions(in: appStore, events: events)
         var tasks = appStore.tasks
         var created = 0
         var updated = 0
+        var moved = 0
+        var conflicts = 0
         let now = Date()
+        let eligibleTaskCount = tasks.filter { $0.dueDate >= range.start && $0.dueDate < range.end }.count
+        var processedTaskCount = 0
 
-        do {
-            for index in tasks.indices {
-                let task = tasks[index]
-                guard task.dueDate >= range.start && task.dueDate < range.end else { continue }
+        for index in tasks.indices {
+            let task = tasks[index]
+            guard task.dueDate >= range.start && task.dueDate < range.end else { continue }
+            processedTaskCount += 1
+            let matches = matchingEvents(for: task, in: events)
+            if matches.count > 1 { conflicts += 1; continue }
+            let existingEvent = matches.first
+            if existingEvent == nil && (task.calendarEventIdentifier != nil ||
+                                     task.calendarEventExternalIdentifier != nil ||
+                                     task.calendarIdentifier != nil) {
+                // A missing linked event must not become a second event on retry.
+                conflicts += 1
+                continue
+            }
+            let event = existingEvent ?? EKEvent(eventStore: eventStore)
+            let shouldMoveToSelectedCalendar = existingEvent.map {
+                $0.calendar.calendarIdentifier != calendar.calendarIdentifier
+            } ?? false
+            if existingEvent == nil { event.calendar = calendar }
+            else if shouldMoveToSelectedCalendar {
+                // Move the uniquely identified checklist event into the selected destination
+                // instead of creating a second copy there.
+                event.calendar = calendar
+            }
 
-                let fetchedEvent = task.calendarEventIdentifier.flatMap { eventStore.event(withIdentifier: $0) }
-                let existingEvent = fetchedEvent?.calendar.calendarIdentifier == selectedCalendarID ? fetchedEvent : nil
-                let event = existingEvent ?? EKEvent(eventStore: eventStore)
-                if existingEvent == nil { event.calendar = calendar }
-
+            do {
                 event.title = task.title
                 event.notes = task.notes.isEmpty ? nil : task.notes
+                if event.url == nil || (event.url?.scheme == "deskflow" && event.url?.host == "task") {
+                    event.url = URL(string: "deskflow://task/\(task.id.uuidString)")
+                }
                 applyDate(from: task, to: event)
 
                 try eventStore.save(event, span: .thisEvent, commit: true)
                 tasks[index].calendarEventIdentifier = event.eventIdentifier
+                tasks[index].calendarEventExternalIdentifier = event.calendarItemExternalIdentifier
+                tasks[index].calendarIdentifier = calendar.calendarIdentifier
                 tasks[index].calendarSyncedAt = now
-                if existingEvent == nil { created += 1 } else { updated += 1 }
+                if existingEvent == nil {
+                    created += 1
+                } else if shouldMoveToSelectedCalendar {
+                    moved += 1
+                } else {
+                    updated += 1
+                }
+            } catch {
+                if created + updated + moved > 0 { appStore.applyCalendarTasks(tasks) }
+                statusMessage = "写入中断：新增 \(created)，更新 \(updated)，移入所选日历 \(moved)，删除 \(deletionSummary.removed)，待重试 \(deletionSummary.pending)；\(error.localizedDescription)"
+                return
             }
 
-            appStore.applyCalendarTasks(tasks)
-            statusMessage = "已写入“\(calendar.title)”：新增 \(created)，更新 \(updated)"
-        } catch {
-            statusMessage = "写入失败：\(error.localizedDescription)"
+            if processedTaskCount.isMultiple(of: 10) {
+                statusMessage = "正在同步到“\(calendar.title)”：已检查 \(processedTaskCount)/\(eligibleTaskCount) 项…"
+                await Task.yield()
+            }
         }
+        if created + updated + moved > 0 { appStore.applyCalendarTasks(tasks) }
+        statusMessage = "已写入“\(calendar.title)”：新增 \(created)，更新 \(updated)，移入所选日历 \(moved)，删除 \(deletionSummary.removed)，待重试 \(deletionSummary.pending)，未安全匹配 \(conflicts)"
     }
 
     func openPrivacySettings() {
@@ -337,6 +476,13 @@ final class CalendarSyncService: ObservableObject {
 
     private var selectedCalendar: EKCalendar? {
         eventStore.calendars(for: .event).first { $0.calendarIdentifier == selectedCalendarID }
+    }
+
+    private static func hasEventAccess(_ status: EKAuthorizationStatus) -> Bool {
+        if #available(macOS 14.0, *) {
+            return status == .fullAccess
+        }
+        return status == .authorized
     }
 
     private var transferRange: (start: Date, end: Date) {
@@ -352,7 +498,122 @@ final class CalendarSyncService: ObservableObject {
             return false
         }
         refreshCalendars()
-        return !selectedCalendarID.isEmpty
+        guard !selectedCalendarID.isEmpty else {
+            statusMessage = "没有可写入的日历，请先选择或创建一个日历"
+            return false
+        }
+        return true
+    }
+
+    private func taskID(in event: EKEvent) -> UUID? {
+        guard let url = event.url, url.scheme == "deskflow", url.host == "task" else { return nil }
+        return UUID(uuidString: url.lastPathComponent)
+    }
+
+    private func externalIdentifierKey(calendarID: String, externalID: String) -> String {
+        "\(calendarID)\u{1F}\(externalID)"
+    }
+
+    private func isHolidayCalendar(_ calendar: EKCalendar) -> Bool {
+        CalendarEventVisibility.isHolidayCalendar(named: calendar.title) ||
+            CalendarEventVisibility.isHolidayCalendar(named: calendar.source.title)
+    }
+
+    private func attachTaskIdentity(_ taskID: UUID, to event: EKEvent) {
+        guard event.url == nil else { return }
+        event.url = URL(string: "deskflow://task/\(taskID.uuidString)")
+        try? eventStore.save(event, span: .thisEvent, commit: true)
+    }
+
+    private func matchingEvents(for task: TodoItem, in events: [EKEvent]) -> [EKEvent] {
+        var candidates = events
+        if let identifier = task.calendarEventIdentifier,
+           let event = eventStore.event(withIdentifier: identifier) {
+            candidates.append(event)
+        }
+        if let externalIdentifier = task.calendarEventExternalIdentifier {
+            candidates += eventStore.calendarItems(withExternalIdentifier: externalIdentifier)
+                .compactMap { $0 as? EKEvent }
+        }
+
+        var eventsByIdentifier: [String: EKEvent] = [:]
+        var identities: [CalendarEventIdentity] = []
+        for event in candidates where event.status != .canceled {
+            guard let identifier = event.eventIdentifier, eventsByIdentifier[identifier] == nil else { continue }
+            eventsByIdentifier[identifier] = event
+            identities.append(CalendarEventIdentity(
+                taskID: taskID(in: event),
+                eventIdentifier: identifier,
+                externalIdentifier: event.calendarItemExternalIdentifier,
+                calendarIdentifier: event.calendar.calendarIdentifier
+            ))
+        }
+
+        return CalendarEventIdentityMatcher.matchingIdentifiers(
+            taskID: task.id,
+            eventIdentifier: task.calendarEventIdentifier,
+            externalIdentifier: task.calendarEventExternalIdentifier,
+            calendarIdentifier: task.calendarIdentifier,
+            candidates: identities
+        ).compactMap { eventsByIdentifier[$0] }
+    }
+
+    private func isPendingDeletion(_ event: EKEvent, matching deletions: [PendingCalendarDeletion], among events: [EKEvent]) -> Bool {
+        deletions.contains { pending in
+            let hasStrongMatch = events.contains { candidate in
+                taskID(in: candidate) == pending.taskID ||
+                (pending.eventIdentifier != nil && candidate.eventIdentifier == pending.eventIdentifier)
+            }
+            if hasStrongMatch {
+                return taskID(in: event) == pending.taskID ||
+                    (pending.eventIdentifier != nil && event.eventIdentifier == pending.eventIdentifier)
+            }
+            return pending.externalIdentifier != nil &&
+                event.calendarItemExternalIdentifier == pending.externalIdentifier
+        }
+    }
+
+    @discardableResult
+    private func syncPendingDeletions(in store: AppStore, events: [EKEvent]) -> CalendarDeletionSummary {
+        var summary = CalendarDeletionSummary()
+        for pending in store.pendingCalendarDeletions {
+            var candidates = events.filter { event in
+                taskID(in: event) == pending.taskID ||
+                (pending.eventIdentifier != nil && event.eventIdentifier == pending.eventIdentifier)
+            }
+            if let identifier = pending.eventIdentifier,
+               let event = eventStore.event(withIdentifier: identifier),
+               !candidates.contains(where: { $0.eventIdentifier == event.eventIdentifier }) {
+                candidates.append(event)
+            }
+            if candidates.isEmpty, let external = pending.externalIdentifier {
+                candidates += eventStore.calendarItems(withExternalIdentifier: external).compactMap { $0 as? EKEvent }
+            }
+            var seen = Set<String>()
+            let matches = candidates.filter { event in
+                guard let identifier = event.eventIdentifier else { return false }
+                return seen.insert(identifier).inserted
+            }
+            guard matches.count <= 1 else {
+                summary.pending += 1
+                continue
+            }
+            do {
+                if let event = matches.first {
+                    try eventStore.remove(event, span: .thisEvent, commit: true)
+                    summary.removed += 1
+                }
+                // No matching event means it was already removed in Calendar.
+                store.finishCalendarDeletion(taskID: pending.taskID)
+            } catch {
+                summary.pending += 1
+            }
+        }
+        return summary
+    }
+
+    private func allDaySpan(for event: EKEvent) -> Int {
+        AllDayDateRange.spanDays(start: event.startDate, end: event.endDate)
     }
 
     private func applyDate(from task: TodoItem, to event: EKEvent) {
@@ -363,11 +624,10 @@ final class CalendarSyncService: ObservableObject {
         } else {
             event.isAllDay = true
             event.startDate = task.dueDate.startOfDay
-            if let duration = task.calendarDurationSeconds {
-                event.endDate = task.dueDate.startOfDay.addingTimeInterval(duration)
-            } else {
-                event.endDate = Calendar.current.date(byAdding: .day, value: 1, to: task.dueDate.startOfDay) ?? task.dueDate.addingTimeInterval(86_400)
-            }
+            let days = max(1, task.calendarAllDaySpanDays ?? 1)
+            let nextDay = AllDayDateRange.exclusiveEnd(start: event.startDate, spanDays: days)
+                ?? event.startDate.addingTimeInterval(TimeInterval(days * 86_400))
+            event.endDate = nextDay
         }
     }
 }

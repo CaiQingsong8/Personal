@@ -4,21 +4,78 @@ struct TaskListView: View {
     @EnvironmentObject private var store: AppStore
     @State private var newTaskTitle = ""
     @State private var editingTask: TodoItem?
+    @State private var isSelecting = false
+    @State private var selectedTaskIDs = Set<UUID>()
+    @State private var confirmBatchDelete = false
 
     private var dayTasks: [TodoItem] { store.tasks(on: store.selectedDate) }
+    private var recentTasks: [TodoItem] {
+        let calendar = Calendar.current
+        let today = Date().startOfDay
+        guard let start = calendar.date(byAdding: .day, value: -29, to: today),
+              let end = calendar.date(byAdding: .day, value: 1, to: today) else { return [] }
+        return store.tasks
+            .filter { $0.dueDate >= start && $0.dueDate < end }
+            .sorted {
+                if !calendar.isDate($0.dueDate, inSameDayAs: $1.dueDate) { return $0.dueDate > $1.dueDate }
+                if $0.isCompleted != $1.isCompleted { return !$0.isCompleted }
+                return $0.createdAt < $1.createdAt
+            }
+    }
+    private var recentTaskGroups: [TaskDayGroup] {
+        let grouped = Dictionary(grouping: recentTasks) { $0.dueDate.startOfDay }
+        return grouped.keys.sorted(by: >).map { date in
+            TaskDayGroup(date: date, tasks: grouped[date] ?? [])
+        }
+    }
+    private var allRecentTaskIDs: Set<UUID> { Set(recentTasks.map(\.id)) }
 
     var body: some View {
         VStack(spacing: 0) {
-            dateHeader
-            quickAdd
+            if isSelecting {
+                batchHeader
+            } else {
+                dateHeader
+                quickAdd
+            }
+            selectionBar
 
-            if dayTasks.isEmpty {
+            if isSelecting {
+                if recentTaskGroups.isEmpty {
+                    emptyRecentState
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 10) {
+                            ForEach(recentTaskGroups) { group in
+                                VStack(alignment: .leading, spacing: 5) {
+                                    HStack {
+                                        Text(Self.groupDateFormatter.string(from: group.date))
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                        Text("\(group.tasks.count) 项")
+                                            .font(.caption2)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                    ForEach(group.tasks) { task in
+                                        TaskRow(task: task, editingTask: $editingTask,
+                                                isSelecting: true, selectedTaskIDs: $selectedTaskIDs)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                    }
+                }
+            } else if dayTasks.isEmpty {
                 emptyState
             } else {
                 ScrollView {
                     LazyVStack(spacing: 5) {
                         ForEach(dayTasks) { task in
-                            TaskRow(task: task, editingTask: $editingTask)
+                            TaskRow(task: task, editingTask: $editingTask,
+                                    isSelecting: false, selectedTaskIDs: $selectedTaskIDs)
                         }
                     }
                     .padding(.horizontal, 14)
@@ -26,12 +83,104 @@ struct TaskListView: View {
                 }
             }
 
+            if isSelecting && !selectedTaskIDs.isEmpty {
+                Button("删除已选 \(selectedTaskIDs.count) 项", role: .destructive) {
+                    confirmBatchDelete = true
+                }
+                .padding(.bottom, 8)
+            }
+
             Divider().opacity(0.6)
-            FocusTimerView()
+            if !isSelecting { FocusTimerView() }
         }
         .sheet(item: $editingTask) { task in
             TaskEditorView(task: task)
         }
+        .confirmationDialog("删除已选任务？", isPresented: $confirmBatchDelete) {
+            Button("删除 \(selectedTaskIDs.count) 项", role: .destructive) {
+                store.deleteTasks(ids: selectedTaskIDs)
+                selectedTaskIDs.removeAll()
+                isSelecting = false
+            }
+        } message: {
+            Text("将删除最近 30 天（含今天）所选的 \(selectedTaskIDs.count) 项任务。关联的 Mac 日历事项将在下次同步时一并删除。")
+        }
+        .onChange(of: store.selectedDate) { _ in
+            if !isSelecting {
+                selectedTaskIDs.removeAll()
+            }
+        }
+        .onChange(of: store.tasks.map(\.id)) { taskIDs in
+            selectedTaskIDs.formIntersection(Set(taskIDs))
+        }
+    }
+
+    private var batchHeader: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("批量选择任务")
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                Text("最近 30 天（含今天） · 共 \(recentTasks.count) 项")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("取消") {
+                isSelecting = false
+                selectedTaskIDs.removeAll()
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 14)
+    }
+
+    private var selectionBar: some View {
+        HStack {
+            if isSelecting {
+                Button(selectedTaskIDs.isSuperset(of: allRecentTaskIDs) && !allRecentTaskIDs.isEmpty
+                       ? "取消全选" : "全选最近30天") {
+                    if selectedTaskIDs.isSuperset(of: allRecentTaskIDs) {
+                        selectedTaskIDs.subtract(allRecentTaskIDs)
+                    } else {
+                        selectedTaskIDs.formUnion(allRecentTaskIDs)
+                    }
+                }
+                .disabled(allRecentTaskIDs.isEmpty)
+                Text("已选 \(selectedTaskIDs.count) 项")
+                    .foregroundStyle(.secondary)
+            } else {
+                Button {
+                    isSelecting = true
+                    selectedTaskIDs.removeAll()
+                } label: {
+                    Label("批量选择", systemImage: "checklist")
+                }
+                Text("最近 30 天")
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .font(.caption)
+        .buttonStyle(.borderless)
+        .padding(.horizontal, 17)
+        .padding(.top, 7)
+    }
+
+    private var emptyRecentState: some View {
+        VStack(spacing: 7) {
+            Spacer()
+            Image(systemName: "checkmark.seal")
+                .font(.system(size: 30, weight: .light))
+                .foregroundStyle(Color.accentColor.opacity(0.8))
+            Text("最近 30 天没有任务")
+                .font(.subheadline.weight(.medium))
+            Text("可以取消批量选择，继续查看其他日期。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private var dateHeader: some View {
@@ -121,19 +270,43 @@ struct TaskListView: View {
         formatter.dateFormat = "EEEE"
         return formatter
     }()
+
+    private static let groupDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日 EEEE"
+        return formatter
+    }()
+}
+
+private struct TaskDayGroup: Identifiable {
+    let date: Date
+    let tasks: [TodoItem]
+    var id: Date { date }
 }
 
 struct TaskRow: View {
     @EnvironmentObject private var store: AppStore
     let task: TodoItem
     @Binding var editingTask: TodoItem?
+    let isSelecting: Bool
+    @Binding var selectedTaskIDs: Set<UUID>
 
     var body: some View {
         HStack(spacing: 10) {
-            Button { store.toggleTask(task) } label: {
-                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+            Button {
+                if isSelecting {
+                    if !selectedTaskIDs.insert(task.id).inserted { selectedTaskIDs.remove(task.id) }
+                } else {
+                    store.toggleTask(task)
+                }
+            } label: {
+                Image(systemName: isSelecting
+                      ? (selectedTaskIDs.contains(task.id) ? "checkmark.square.fill" : "square")
+                      : (task.isCompleted ? "checkmark.circle.fill" : "circle"))
                     .font(.system(size: 19))
-                    .foregroundStyle(task.isCompleted ? Color.accentColor : Color.secondary.opacity(0.65))
+                    .foregroundStyle((isSelecting ? selectedTaskIDs.contains(task.id) : task.isCompleted)
+                                     ? Color.accentColor : Color.secondary.opacity(0.65))
             }
             .buttonStyle(.plain)
 
@@ -163,11 +336,17 @@ struct TaskRow: View {
                 }
             }
             .contentShape(Rectangle())
-            .onTapGesture { editingTask = task }
+            .onTapGesture {
+                if isSelecting {
+                    if !selectedTaskIDs.insert(task.id).inserted { selectedTaskIDs.remove(task.id) }
+                } else {
+                    editingTask = task
+                }
+            }
 
             Spacer(minLength: 4)
 
-            Button {
+            if !isSelecting { Button {
                 store.selectTaskForTimer(task)
             } label: {
                 Image(systemName: store.timerTaskID == task.id ? "timer.circle.fill" : "timer")
@@ -188,16 +367,19 @@ struct TaskRow: View {
             }
             .buttonStyle(.plain)
             .help("编辑任务")
+            }
         }
         .padding(.horizontal, 11)
         .padding(.vertical, 9)
         .background(store.timerTaskID == task.id ? Color.accentColor.opacity(0.08) : Color.primary.opacity(0.028))
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .contextMenu {
-            Button("编辑") { editingTask = task }
-            Button("绑定到番茄钟") { store.selectTaskForTimer(task) }
-            Divider()
-            Button("删除", role: .destructive) { store.deleteTask(task) }
+            if !isSelecting {
+                Button("编辑") { editingTask = task }
+                Button("绑定到番茄钟") { store.selectTaskForTimer(task) }
+                Divider()
+                Button("删除", role: .destructive) { store.deleteTask(task) }
+            }
         }
     }
 
@@ -319,9 +501,11 @@ struct TaskEditorView: View {
                     draft.hasSpecificTime = hasSpecificTime
                     if hasSpecificTime {
                         draft.calendarDurationSeconds = TimeInterval(durationMinutes * 60)
+                        draft.calendarAllDaySpanDays = nil
                     } else {
                         draft.dueDate = draft.dueDate.startOfDay
                         draft.calendarDurationSeconds = nil
+                        if draft.hasSpecificTime ?? false { draft.calendarAllDaySpanDays = 1 }
                     }
                     draft.completedAt = draft.isCompleted ? (draft.completedAt ?? Date()) : nil
                     store.updateTask(draft)
@@ -333,7 +517,7 @@ struct TaskEditorView: View {
         }
         .padding(22)
         .frame(width: 380)
-        .onChange(of: hasSpecificTime) { _, enabled in
+        .onChange(of: hasSpecificTime) { enabled in
             if enabled && !(draft.hasSpecificTime ?? false) {
                 draft.dueDate = Self.nextHalfHour(on: draft.dueDate)
                 durationMinutes = 60

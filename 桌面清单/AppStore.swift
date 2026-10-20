@@ -9,6 +9,7 @@ final class AppStore: ObservableObject {
 
     @Published private(set) var tasks: [TodoItem] = []
     @Published private(set) var focusRecords: [FocusRecord] = []
+    @Published private(set) var pendingCalendarDeletions: [PendingCalendarDeletion] = []
 
     @Published var selectedDate: Date = Date().startOfDay
     @Published var selectedTab: AppTab = .tasks
@@ -109,8 +110,30 @@ final class AppStore: ObservableObject {
     }
 
     func deleteTask(_ task: TodoItem) {
-        tasks.removeAll { $0.id == task.id }
-        if timerTaskID == task.id { timerTaskID = nil }
+        deleteTasks(ids: [task.id])
+    }
+
+    func deleteTasks(ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        for task in tasks where ids.contains(task.id) {
+            if task.calendarEventIdentifier != nil || task.calendarEventExternalIdentifier != nil || task.calendarIdentifier != nil {
+                if !pendingCalendarDeletions.contains(where: { $0.taskID == task.id }) {
+                    pendingCalendarDeletions.append(PendingCalendarDeletion(
+                        taskID: task.id,
+                        eventIdentifier: task.calendarEventIdentifier,
+                        externalIdentifier: task.calendarEventExternalIdentifier,
+                        calendarIdentifier: task.calendarIdentifier
+                    ))
+                }
+            }
+        }
+        tasks.removeAll { ids.contains($0.id) }
+        if let timerTaskID, ids.contains(timerTaskID) { self.timerTaskID = nil }
+        save()
+    }
+
+    func finishCalendarDeletion(taskID: UUID) {
+        pendingCalendarDeletions.removeAll { $0.taskID == taskID }
         save()
     }
 
@@ -290,6 +313,7 @@ final class AppStore: ObservableObject {
             let decoded = try decoder.decode(PersistedData.self, from: data)
             tasks = decoded.tasks
             focusRecords = decoded.focusRecords
+            pendingCalendarDeletions = decoded.pendingCalendarDeletions
             if let snapshot = decoded.timer {
                 remainingSeconds = snapshot.remainingSeconds
                 sessionLength = snapshot.sessionLength
@@ -330,7 +354,8 @@ final class AppStore: ObservableObject {
                 endDate: timerEndDate,
                 startedAt: sessionStartedAt,
                 taskID: timerTaskID
-            )
+            ),
+            pendingCalendarDeletions: pendingCalendarDeletions
         )
     }
 

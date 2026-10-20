@@ -163,79 +163,11 @@ struct DataMenuView: View {
                 .frame(maxWidth: 270, alignment: .leading)
 
             Divider()
-
-            HStack {
-                Image(systemName: "calendar.badge.arrowtriangle.2.circlepath")
-                    .foregroundStyle(Color.accentColor)
-                Text("Mac 日历互传")
-                    .font(.headline)
-            }
-
-            Text(calendarSync.authorizationDescription)
+            Label("Mac 日历显示与同步", systemImage: "calendar.badge.arrowtriangle.2.circlepath")
+                .font(.subheadline.weight(.medium))
+            Text("请在月历页底部选择日历并执行导入或同步。清单和日历中的关联事项会按任务 ID 更新或删除。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-
-            if calendarSync.isAuthorized {
-                Button {
-                    calendarSync.createOrUseScheduleCalendar()
-                } label: {
-                    Label("创建/使用“\(calendarSync.scheduleCalendarName)”", systemImage: "calendar.badge.plus")
-                }
-                .buttonStyle(.bordered)
-                .disabled(calendarSync.isWorking)
-
-                if calendarSync.calendars.isEmpty {
-                    Text("没有找到可编辑的日历")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Picker("互传日历", selection: $calendarSync.selectedCalendarID) {
-                        ForEach(calendarSync.calendars) { calendar in
-                            Text(calendar.displayName).tag(calendar.id)
-                        }
-                    }
-
-                    HStack {
-                        Button {
-                            Task { await calendarSync.importFromCalendar(into: store) }
-                        } label: {
-                            Label("导入行程", systemImage: "arrow.down.to.line")
-                        }
-                        .buttonStyle(.bordered)
-
-                        Button {
-                            Task { await calendarSync.exportToCalendar(from: store) }
-                        } label: {
-                            Label("写入日历", systemImage: "arrow.up.to.line")
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    .disabled(calendarSync.isWorking)
-                }
-            } else if calendarSync.authorizationStatus == .denied || calendarSync.authorizationStatus == .restricted {
-                Button("打开系统日历权限设置") { calendarSync.openPrivacySettings() }
-                    .buttonStyle(.borderedProminent)
-            } else {
-                Button("允许访问 Mac 日历") {
-                    Task { await calendarSync.requestAccess() }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(calendarSync.isWorking)
-            }
-
-            if calendarSync.isWorking {
-                ProgressView()
-                    .controlSize(.small)
-            }
-
-            Text(calendarSync.statusMessage)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text("互传范围：过去 1 年至未来 2 年；不会自动删除任一边的数据。")
-                .font(.system(size: 9))
-                .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)

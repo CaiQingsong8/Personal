@@ -30,11 +30,11 @@ FRAMEWORKS=(
   -framework UniformTypeIdentifiers
 )
 
-swiftc -O -parse-as-library -target x86_64-apple-macosx14.0 \
+swiftc -O -parse-as-library -target x86_64-apple-macosx13.0 \
   "${SOURCES[@]}" "${FRAMEWORKS[@]}" \
   -o "$BUILD_ROOT/DeskFlow-x86_64"
 
-swiftc -O -parse-as-library -target arm64-apple-macosx14.0 \
+swiftc -O -parse-as-library -target arm64-apple-macosx13.0 \
   "${SOURCES[@]}" "${FRAMEWORKS[@]}" \
   -o "$BUILD_ROOT/DeskFlow-arm64"
 

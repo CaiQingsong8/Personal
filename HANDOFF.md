@@ -3,6 +3,11 @@
 > 最后更新：2026-10-22
 > 交接状态：本地仅保留 1.4.1；旧版本已归档到 GitHub 历史
 
+## 当前进行中
+
+- [ ] Mac 提醒事项互传与月历显示：用户已批准设计，规格文档 `docs/superpowers/specs/2026-10-22-macos-reminders-sync-design.md` 已建立；当前等待用户审阅规格。规格审阅通过后再编写实施计划，尚未修改应用代码。
+- 兼容目标：最低 macOS 13.0；Ventura 使用旧提醒事项授权 API，macOS 14 及以上使用完整访问 API。
+
 ## 仓库定位
 
 - 代码仓库：CaiQingsong8/Personal

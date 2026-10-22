@@ -127,6 +127,22 @@ extension Date {
     var startOfDay: Date { Calendar.current.startOfDay(for: self) }
 }
 
+enum TaskScheduleDefaults {
+    static let durationSeconds: TimeInterval = 2 * 60 * 60
+
+    static func startDate(on date: Date, now: Date = Date(), calendar: Calendar = .current) -> Date {
+        let minute = calendar.component(.minute, from: now)
+        let minutesToAdd = minute == 0 || minute == 30 ? 0 : (minute < 30 ? 30 - minute : 60 - minute)
+        let alignedNow = calendar.date(byAdding: .minute, value: minutesToAdd, to: now) ?? now
+        let time = calendar.dateComponents([.hour, .minute], from: alignedNow)
+        var day = calendar.dateComponents([.year, .month, .day], from: date)
+        day.hour = time.hour
+        day.minute = time.minute
+        day.second = 0
+        return calendar.date(from: day) ?? date
+    }
+}
+
 enum AllDayDateRange {
     static func exclusiveEnd(start: Date, spanDays: Int, calendar: Calendar = .current) -> Date? {
         calendar.date(

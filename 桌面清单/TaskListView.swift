@@ -498,6 +498,7 @@ struct TaskEditorView: View {
                 Spacer()
                 Button("取消") { dismiss() }
                 Button("保存") {
+                    let wasSpecificTime = draft.hasSpecificTime ?? false
                     draft.hasSpecificTime = hasSpecificTime
                     if hasSpecificTime {
                         draft.calendarDurationSeconds = TimeInterval(durationMinutes * 60)
@@ -505,7 +506,7 @@ struct TaskEditorView: View {
                     } else {
                         draft.dueDate = draft.dueDate.startOfDay
                         draft.calendarDurationSeconds = nil
-                        if draft.hasSpecificTime ?? false { draft.calendarAllDaySpanDays = 1 }
+                        if wasSpecificTime { draft.calendarAllDaySpanDays = 1 }
                     }
                     draft.completedAt = draft.isCompleted ? (draft.completedAt ?? Date()) : nil
                     store.updateTask(draft)
@@ -519,8 +520,8 @@ struct TaskEditorView: View {
         .frame(width: 380)
         .onChange(of: hasSpecificTime) { enabled in
             if enabled && !(draft.hasSpecificTime ?? false) {
-                draft.dueDate = Self.nextHalfHour(on: draft.dueDate)
-                durationMinutes = 60
+                draft.dueDate = TaskScheduleDefaults.startDate(on: draft.dueDate)
+                durationMinutes = Int(TaskScheduleDefaults.durationSeconds / 60)
             }
         }
     }
@@ -529,20 +530,6 @@ struct TaskEditorView: View {
         if durationMinutes % 60 == 0 { return "\(durationMinutes / 60) 小时" }
         if durationMinutes > 60 { return "\(durationMinutes / 60) 小时 \(durationMinutes % 60) 分钟" }
         return "\(durationMinutes) 分钟"
-    }
-
-    private static func nextHalfHour(on date: Date) -> Date {
-        let calendar = Calendar.current
-        let now = Date()
-        let minute = calendar.component(.minute, from: now)
-        let minutesToAdd = minute == 0 || minute == 30 ? 0 : (minute < 30 ? 30 - minute : 60 - minute)
-        let alignedNow = calendar.date(byAdding: .minute, value: minutesToAdd, to: now) ?? now
-        let time = calendar.dateComponents([.hour, .minute], from: alignedNow)
-        var day = calendar.dateComponents([.year, .month, .day], from: date)
-        day.hour = time.hour
-        day.minute = time.minute
-        day.second = 0
-        return calendar.date(from: day) ?? date
     }
 
     private static func replacingDay(of date: Date, with newDay: Date) -> Date {

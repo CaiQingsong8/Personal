@@ -81,8 +81,9 @@ final class AppStore: ObservableObject {
         guard !clean.isEmpty else { return }
         tasks.append(TodoItem(
             title: clean,
-            dueDate: (dueDate ?? selectedDate).startOfDay,
-            hasSpecificTime: false,
+            dueDate: TaskScheduleDefaults.startDate(on: dueDate ?? selectedDate),
+            hasSpecificTime: true,
+            calendarDurationSeconds: TaskScheduleDefaults.durationSeconds,
             localUpdatedAt: Date()
         ))
         save()

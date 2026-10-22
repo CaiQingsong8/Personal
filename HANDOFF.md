@@ -1,40 +1,41 @@
 # 项目交接
 
 > 最后更新：2026-10-22
-> 交接状态：ready
+> 交接状态：1.4.1 已推送并安装；历史归档及本地旧副本清理进行中
 
 ## 仓库定位
 
 - 代码仓库：CaiQingsong8/Personal
-- 当前分支：codex/deskflow-calendar-sync
-- 最新源码提交：5f248f34100616646c41ed58845aba649b67b47b
+- 当前分支：`codex/deskflow-calendar-sync`
+- 当前代码提交：`c05356be44448b1292c0f2cf6fc362ef83fc2b23`
+- 版本标签：`v1.4.1`
 - 当前工作版本：桌面清单 1.4.1（build 14）
-- 项目目录：桌面清单/
+- 项目目录：`桌面清单/`
 
 ## 已完成
 
-- [x] 保留原提交时间线，推送 `57e2ec0` 和 `5f248f3` 到 GitHub 分支 `codex/deskflow-calendar-sync`。
-- [x] `v1.4.0` 标签指向 `5f248f34100616646c41ed58845aba649b67b47b`，保留在 Git 历史中。
-- [x] 1.4.1 源码修改、日历语义测试、x86_64 与 arm64 编译、签名和打包校验已完成。
-- [x] 新包存入仓库工作树 `桌面清单/桌面清单-1.4.1.app.zip`，旧版本包保留在 Git 时间线。
-- [x] 未触碰 `~/Library/Application Support/DeskFlow` 中的事项和专注数据。
+- [x] 1.4.1 代码分支和 `v1.4.1` 标签已推送，GitHub 远端分支与本地提交一致。
+- [x] `/Applications/桌面清单.app` 已安装并打开为 1.4.1（build 14）；旧运行进程已退出。
+- [x] 新建清单事项默认按最近整点/半点开始、持续 2 小时；旧全天事项不自动迁移，编辑时可启用具体时间。
+- [x] 默认排程语义回归测试通过；x86_64 和 arm64 编译、签名、Universal 2 架构和 ZIP 完整性通过。
+- [x] 本地 `DeskFlow` 数据目录未触碰。
+- [x] 缺失的 v1.0.0、v1.0.1、v1.1.0、v1.2.0、v1.2.4 备份及 v1.3.1 源码整理到 `桌面清单/历史版本归档/`，待本提交推送后可从 Git 恢复。v1.3.0 安装包与历史 Git 包哈希一致，没有重复存档。
 
 ## 未完成
 
-- [ ] 将 1.4.1 提交、`v1.4.1` 标签推送到 GitHub，并创建正式 Release。GitHub 连接器已确认当前账户有 Personal 仓库 push 权限；GitHub Releases API 对 v1.4.0 返回 404。
-- [ ] 将 1.4.1 安装到 `/Applications/桌面清单.app` 并打开；当前本地安装仍是 1.4.0。
-- [ ] `桌面清单/build.sh` 的默认图标生成仍会触发 `iconutil: Invalid Iconset`。本次编译使用现有 1.4.0 图标资源组装 1.4.1 包。
+- [ ] 将历史归档提交推送后，删除本机旧工作副本、旧说明文件和被忽略的 1.4.0 构建目录；保留 `/Applications/桌面清单.app` 1.4.1 和用户数据。
+- [ ] GitHub 上尚无 `v1.4.1` 正式 Release 页面；当前工具没有创建 Release/上传附件的接口，需确认能否通过已登录 GitHub 页面完成。
+- [ ] `build.sh` 默认图标生成仍遇到 `iconutil: Invalid Iconset`；1.4.1 已使用现有图标完成构建。
 
 ## 验证状态
 
-- Swift 语义回归测试：通过，覆盖默认两小时时长及 14:27→14:30、14:45→15:00 的对齐规则。
-- Swift 源码：arm64 和 x86_64 全量编译通过，使用 macOS 15.4 SDK 和 `/private/tmp` 模块缓存。
-- 应用包：`lipo -archs` 显示 `x86_64 arm64`；`codesign --verify --deep --strict` 通过；Info.plist 版本为 1.4.1（14）。
-- 发行包：`桌面清单/桌面清单-1.4.1.app.zip`，SHA-256 `8a1be4d5e78e6a59f4ccd8e3a8e0364ff2e5606dcb25a69754520419584f93c7`，`unzip -tq` 通过。
-- 实机 EventKit/iCloud 同步：未在本次任务中做账号级点击验证。
+- [x] Swift 语义回归测试通过，覆盖默认两小时时长和最近半小时对齐。
+- [x] 两架构完整编译通过；包的 Info.plist 为 1.4.1（14），签名有效。
+- [x] `桌面清单/桌面清单-1.4.1.app.zip` SHA-256：`8a1be4d5e78e6a59f4ccd8e3a8e0364ff2e5606dcb25a69754520419584f93c7`。
+- [ ] EventKit/iCloud 真实账户增改删同步未在本次实机点击验证。
 
 ## 注意事项
 
-- 后续从 `v1.4.1`（待推送）或 `codex/deskflow-calendar-sync` 恢复代码；较旧版本仍可从 Git 历史查看。
-- 桌面清单本地事项数据与源码版本文件分开管理，不要随旧版本清理。
-- 正式 GitHub Release 及其附件需要在 GitHub 发布页完成；当前 1.4.0 安装包已随 Git 分支保存。
+- 不要清理 `~/Library/Application Support/DeskFlow`。
+- 原全天事项以次日零点作为不包含的结束边界；如要避免日历月视图显示跨日条，编辑该事项并开启具体时间，保存后同步会更新原关联事件。
+- `gh auth status` 曾显示本地 GitHub CLI token 无效；GitHub 连接器账户 `CaiQingsong8` 有仓库 push 权限，不能据此推断用户未登录。

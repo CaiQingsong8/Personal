@@ -19,9 +19,9 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-	<string>1.4.1</string>
+    <string>1.5.0</string>
     <key>CFBundleVersion</key>
-    <string>14</string>
+    <string>15</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.productivity</string>
     <key>LSMinimumSystemVersion</key>
@@ -34,6 +34,10 @@
     <string>用于在你主动操作时，将桌面清单任务与所选 Mac 日历行程互相传递。</string>
     <key>NSCalendarsUsageDescription</key>
     <string>用于在你主动操作时，将桌面清单任务与所选 Mac 日历行程互相传递。</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>用于在你主动操作时，将桌面清单任务与所选 Mac 提醒事项互相传递。</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>用于在你主动操作时，将桌面清单任务与所选 Mac 提醒事项互相传递。</string>
     <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
 </dict>

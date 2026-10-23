@@ -70,6 +70,7 @@ struct DeskFlowApp: App {
     @StateObject private var store = AppStore.shared
     @StateObject private var windowManager = WindowManager.shared
     @StateObject private var calendarSync = CalendarSyncService.shared
+    @StateObject private var reminderSync = ReminderSyncService.shared
 
     var body: some Scene {
         WindowGroup {
@@ -77,6 +78,7 @@ struct DeskFlowApp: App {
                 .environmentObject(store)
                 .environmentObject(windowManager)
                 .environmentObject(calendarSync)
+                .environmentObject(reminderSync)
                 .frame(minWidth: 410, idealWidth: 430, maxWidth: 560,
                        minHeight: 620, idealHeight: 690, maxHeight: 900)
         }

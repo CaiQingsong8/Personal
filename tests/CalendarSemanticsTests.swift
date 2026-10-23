@@ -2,7 +2,7 @@ import Foundation
 
 @main
 struct CalendarSemanticsTests {
-    static func main() {
+    static func main() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
 
@@ -24,6 +24,48 @@ struct CalendarSemanticsTests {
         precondition(defaultComponents.year == 2026 && defaultComponents.month == 10 && defaultComponents.day == 22)
         precondition(defaultComponents.hour == 14 && defaultComponents.minute == 30 && defaultComponents.second == 0)
         precondition(TaskScheduleDefaults.durationSeconds == 2 * 60 * 60)
+
+        let reminderCreatedAt = makeDate(2026, 10, 22, hour: 17, minute: 45, second: 0, calendar: calendar)
+        let reminderWithoutDueDate = ReminderDateSemantics.dueDate(
+            components: nil,
+            creationDate: reminderCreatedAt,
+            calendar: calendar
+        )
+        precondition(reminderWithoutDueDate.date == makeDate(2026, 10, 22, calendar: calendar))
+        precondition(!reminderWithoutDueDate.hasSpecificTime)
+
+        let reminderWithoutDates = ReminderDateSemantics.dueDate(
+            components: nil,
+            creationDate: nil,
+            now: nowAt1427,
+            calendar: calendar
+        )
+        precondition(reminderWithoutDates.date == selectedDay)
+        precondition(!reminderWithoutDates.hasSpecificTime)
+
+        let reminderTimedDate = makeDate(2026, 10, 22, hour: 9, minute: 30, second: 0, calendar: calendar)
+        let dateOnlyComponents = ReminderDateSemantics.components(
+            from: reminderTimedDate,
+            hasSpecificTime: false,
+            calendar: calendar
+        )
+        precondition(dateOnlyComponents.year == 2026 && dateOnlyComponents.month == 10 && dateOnlyComponents.day == 22)
+        precondition(dateOnlyComponents.hour == nil && dateOnlyComponents.minute == nil)
+
+        let timedComponents = ReminderDateSemantics.components(
+            from: reminderTimedDate,
+            hasSpecificTime: true,
+            calendar: calendar
+        )
+        precondition(timedComponents.hour == 9 && timedComponents.minute == 30)
+
+        let legacyDataJSON = """
+        {"tasks":[],"focusRecords":[],"timer":null,"pendingCalendarDeletions":[]}
+        """
+        let legacyDecoder = JSONDecoder()
+        legacyDecoder.dateDecodingStrategy = .iso8601
+        let legacyData = try legacyDecoder.decode(PersistedData.self, from: Data(legacyDataJSON.utf8))
+        precondition(legacyData.pendingReminderDeletions.isEmpty)
 
         let nowAt1445 = makeDate(2026, 10, 22, hour: 14, minute: 45, second: 10, calendar: calendar)
         let nextHourStart = TaskScheduleDefaults.startDate(on: selectedDay, now: nowAt1445, calendar: calendar)
@@ -52,6 +94,48 @@ struct CalendarSemanticsTests {
             calendarIdentifier: nil,
             candidates: [linkedInOldCalendar]
         ) == ["old-calendar-event"])
+
+        let reminderLinkedItem = ReminderItemIdentity(
+            taskID: taskID,
+            itemIdentifier: "linked-reminder",
+            externalIdentifier: "reminder-external",
+            listIdentifier: "reminder-list"
+        )
+        precondition(ReminderItemIdentityMatcher.matchingIdentifiers(
+            taskID: taskID,
+            itemIdentifier: nil,
+            externalIdentifier: nil,
+            listIdentifier: nil,
+            candidates: [reminderLinkedItem]
+        ) == ["linked-reminder"])
+
+        let sameTitleOtherTask = ReminderItemIdentity(
+            taskID: UUID(),
+            itemIdentifier: "same-title-different-task",
+            externalIdentifier: nil,
+            listIdentifier: "reminder-list"
+        )
+        precondition(ReminderItemIdentityMatcher.matchingIdentifiers(
+            taskID: taskID,
+            itemIdentifier: nil,
+            externalIdentifier: nil,
+            listIdentifier: nil,
+            candidates: [sameTitleOtherTask]
+        ).isEmpty)
+
+        let duplicatedReminderIdentity = ReminderItemIdentity(
+            taskID: taskID,
+            itemIdentifier: "duplicate-linked-reminder",
+            externalIdentifier: "other-external",
+            listIdentifier: "other-list"
+        )
+        precondition(ReminderItemIdentityMatcher.matchingIdentifiers(
+            taskID: taskID,
+            itemIdentifier: nil,
+            externalIdentifier: nil,
+            listIdentifier: nil,
+            candidates: [reminderLinkedItem, duplicatedReminderIdentity]
+        ).count == 2)
 
         let duplicateInAnotherCalendar = CalendarEventIdentity(
             taskID: taskID,

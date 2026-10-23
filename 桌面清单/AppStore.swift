@@ -10,9 +10,10 @@ final class AppStore: ObservableObject {
     @Published private(set) var tasks: [TodoItem] = []
     @Published private(set) var focusRecords: [FocusRecord] = []
     @Published private(set) var pendingCalendarDeletions: [PendingCalendarDeletion] = []
+    @Published private(set) var pendingReminderDeletions: [PendingReminderDeletion] = []
 
     @Published var selectedDate: Date = Date().startOfDay
-    @Published var selectedTab: AppTab = .tasks
+    @Published var selectedTab: AppTab = .month
     @Published var displayedMonth: Date = Date().startOfDay
 
     @Published var sessionLength: Int = 25 * 60
@@ -127,6 +128,18 @@ final class AppStore: ObservableObject {
                     ))
                 }
             }
+            if task.reminderCalendarItemIdentifier != nil ||
+                task.reminderCalendarItemExternalIdentifier != nil ||
+                task.reminderListIdentifier != nil {
+                if !pendingReminderDeletions.contains(where: { $0.taskID == task.id }) {
+                    pendingReminderDeletions.append(PendingReminderDeletion(
+                        taskID: task.id,
+                        itemIdentifier: task.reminderCalendarItemIdentifier,
+                        externalIdentifier: task.reminderCalendarItemExternalIdentifier,
+                        listIdentifier: task.reminderListIdentifier
+                    ))
+                }
+            }
         }
         tasks.removeAll { ids.contains($0.id) }
         if let timerTaskID, ids.contains(timerTaskID) { self.timerTaskID = nil }
@@ -135,6 +148,16 @@ final class AppStore: ObservableObject {
 
     func finishCalendarDeletion(taskID: UUID) {
         pendingCalendarDeletions.removeAll { $0.taskID == taskID }
+        save()
+    }
+
+    func finishReminderDeletion(taskID: UUID) {
+        pendingReminderDeletions.removeAll { $0.taskID == taskID }
+        save()
+    }
+
+    func applyReminderTasks(_ reminderTasks: [TodoItem]) {
+        tasks = reminderTasks
         save()
     }
 
@@ -315,6 +338,7 @@ final class AppStore: ObservableObject {
             tasks = decoded.tasks
             focusRecords = decoded.focusRecords
             pendingCalendarDeletions = decoded.pendingCalendarDeletions
+            pendingReminderDeletions = decoded.pendingReminderDeletions
             if let snapshot = decoded.timer {
                 remainingSeconds = snapshot.remainingSeconds
                 sessionLength = snapshot.sessionLength
@@ -356,7 +380,8 @@ final class AppStore: ObservableObject {
                 startedAt: sessionStartedAt,
                 taskID: timerTaskID
             ),
-            pendingCalendarDeletions: pendingCalendarDeletions
+            pendingCalendarDeletions: pendingCalendarDeletions,
+            pendingReminderDeletions: pendingReminderDeletions
         )
     }
 

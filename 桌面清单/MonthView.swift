@@ -4,9 +4,11 @@ import SwiftUI
 struct MonthView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var calendarSync: CalendarSyncService
+    @EnvironmentObject private var reminderSync: ReminderSyncService
     @AppStorage("DeskFlowShowMonthTasks") private var showsTasks = true
     @AppStorage("DeskFlowShowMonthCalendarEvents") private var showsCalendarEvents = true
     @AppStorage("DeskFlowShowMonthFocus") private var showsFocus = true
+    @AppStorage("DeskFlowShowMonthReminders") private var showsReminders = true
     private let weekdays = ["一", "二", "三", "四", "五", "六", "日"]
 
     var body: some View {
@@ -32,7 +34,8 @@ struct MonthView: View {
                                 isCurrentMonth: isCurrentMonth(date),
                                 showsTasks: showsTasks,
                                 showsCalendarEvents: showsCalendarEvents,
-                                showsFocus: showsFocus
+                                showsFocus: showsFocus,
+                                showsReminders: showsReminders
                             )
                         } else {
                             Color.clear.frame(minHeight: 54)
@@ -54,10 +57,17 @@ struct MonthView: View {
                 layerButton("专注", icon: "leaf.fill", color: .green, isOn: showsFocus) {
                     showsFocus.toggle()
                 }
+                layerButton("提醒事项", icon: "checklist", color: .purple, isOn: showsReminders) {
+                    showsReminders.toggle()
+                }
+                .help("显示或隐藏所选 Mac 提醒事项列表；已关联清单的事项只显示在任务中")
             }
             .padding(.horizontal, 12)
 
             CalendarSyncPanel()
+                .padding(.horizontal, 10)
+
+            ReminderSyncPanel()
                 .padding(.horizontal, 10)
         }
         .padding(.top, 10)
@@ -65,18 +75,29 @@ struct MonthView: View {
         .onAppear {
             calendarSync.refreshCalendars()
             calendarSync.loadMonthEvents(containing: store.displayedMonth, appStore: store)
+            reminderSync.refreshLists()
+            reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)
         }
         .onChange(of: store.displayedMonth) { month in
             calendarSync.loadMonthEvents(containing: month, appStore: store)
+            reminderSync.loadMonthReminders(containing: month, appStore: store)
         }
         .onChange(of: store.tasks) { _ in
             calendarSync.loadMonthEvents(containing: store.displayedMonth, appStore: store)
+            reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)
         }
         .onChange(of: store.pendingCalendarDeletions) { _ in
             calendarSync.loadMonthEvents(containing: store.displayedMonth, appStore: store)
         }
+        .onChange(of: store.pendingReminderDeletions) { _ in
+            reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)
+        }
+        .onChange(of: reminderSync.selectedListID) { _ in
+            reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
             calendarSync.loadMonthEvents(containing: store.displayedMonth, appStore: store)
+            reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)
         }
     }
 
@@ -273,14 +294,131 @@ private struct CalendarSyncPanel: View {
     }
 }
 
+private struct ReminderSyncPanel: View {
+    @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var reminderSync: ReminderSyncService
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                Image(systemName: "checklist")
+                    .foregroundStyle(Color.purple)
+                Text("Mac 提醒事项同步")
+                    .font(.caption.weight(.semibold))
+                Spacer(minLength: 4)
+                Text(reminderSync.isAuthorized ? "已连接" : "未连接")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(reminderSync.isAuthorized ? Color.green : Color.secondary)
+            }
+
+            if reminderSync.isAuthorized {
+                HStack(spacing: 6) {
+                    if reminderSync.lists.isEmpty {
+                        Text("没有找到可编辑的提醒事项列表")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Picker("互传提醒事项", selection: $reminderSync.selectedListID) {
+                            ForEach(reminderSync.lists) { list in
+                                Text(list.displayName).tag(list.id)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
+                        .accessibilityLabel("选择互传提醒事项列表")
+                    }
+
+                    Button {
+                        reminderSync.createOrUseReminderList()
+                    } label: {
+                        Image(systemName: "checklist")
+                            .frame(width: 25, height: 25)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("创建或选择“\(reminderSync.reminderListName)”")
+                    .accessibilityLabel("创建或使用专用提醒事项列表")
+                    .disabled(reminderSync.isWorking)
+                }
+
+                HStack(spacing: 6) {
+                    Button {
+                        Task { await reminderSync.importFromReminders(into: store) }
+                    } label: {
+                        Label("导入提醒事项", systemImage: "arrow.down.to.line")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Button {
+                        Task { await reminderSync.syncToReminders(from: store) }
+                    } label: {
+                        Label("同步到提醒事项", systemImage: "arrow.triangle.2.circlepath")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                .disabled(reminderSync.isWorking || reminderSync.lists.isEmpty)
+            } else {
+                HStack(spacing: 8) {
+                    Text(reminderSync.authorizationDescription)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                    Spacer(minLength: 0)
+                    if reminderSync.authorizationStatus == .denied || reminderSync.authorizationStatus == .restricted {
+                        Button("打开权限设置") { reminderSync.openPrivacySettings() }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                    } else {
+                        Button("允许访问") {
+                            Task {
+                                await reminderSync.requestAccess()
+                                if reminderSync.isAuthorized {
+                                    reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)
+                                }
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(reminderSync.isWorking)
+                    }
+                }
+            }
+
+            HStack(spacing: 5) {
+                if reminderSync.isWorking { ProgressView().controlSize(.mini) }
+                Text(reminderSync.statusMessage)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("删除项会随同步从提醒事项移除")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
+        .background(Color.primary.opacity(0.035))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
 struct DayCell: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var calendarSync: CalendarSyncService
+    @EnvironmentObject private var reminderSync: ReminderSyncService
     let date: Date
     let isCurrentMonth: Bool
     let showsTasks: Bool
     let showsCalendarEvents: Bool
     let showsFocus: Bool
+    let showsReminders: Bool
 
     private var tasks: [TodoItem] { showsTasks ? store.tasks(on: date) : [] }
     private var calendarEvents: [CalendarDayEvent] {
@@ -293,6 +431,9 @@ struct DayCell: View {
         }
     }
     private var focusSeconds: Int { showsFocus ? store.focusSeconds(on: date) : 0 }
+    private var reminders: [CalendarDayReminder] {
+        showsReminders ? reminderSync.reminders(on: date).filter { !$0.isChecklistLinked } : []
+    }
 
     var body: some View {
         Button {
@@ -329,7 +470,20 @@ struct DayCell: View {
                         .help("\(event.calendarTitle)：\(event.title)")
                     }
 
-                    ForEach(tasks.prefix(calendarEvents.isEmpty ? 2 : 1)) { task in
+                    ForEach(reminders.prefix(1)) { reminder in
+                        HStack(spacing: 3) {
+                            Image(systemName: "checklist")
+                                .font(.system(size: 7.5, weight: .semibold))
+                                .foregroundStyle(Color.purple)
+                            Text(reminder.displayTitle)
+                                .font(.system(size: 8.5, weight: .medium))
+                                .lineLimit(1)
+                                .foregroundStyle(reminder.isCompleted ? Color.secondary : Color.purple)
+                        }
+                        .help("\(reminder.listTitle)：\(reminder.title)")
+                    }
+
+                    ForEach(tasks.prefix(calendarEvents.isEmpty && reminders.isEmpty ? 2 : 1)) { task in
                         HStack(spacing: 3) {
                             Circle()
                                 .fill(task.isCompleted ? Color.secondary.opacity(0.35) : Color.accentColor)
@@ -340,9 +494,10 @@ struct DayCell: View {
                                 .foregroundStyle(task.isCompleted ? .secondary : .primary)
                         }
                     }
-                    let shownCount = (calendarEvents.isEmpty ? min(tasks.count, 2) : min(tasks.count, 1))
-                        + min(calendarEvents.count, 1)
-                    let remainingCount = tasks.count + calendarEvents.count - shownCount
+                    let hasOtherLayers = !calendarEvents.isEmpty || !reminders.isEmpty
+                    let shownCount = (hasOtherLayers ? min(tasks.count, 1) : min(tasks.count, 2))
+                        + min(calendarEvents.count, 1) + min(reminders.count, 1)
+                    let remainingCount = tasks.count + calendarEvents.count + reminders.count - shownCount
                     if remainingCount > 0 {
                         Text("+\(remainingCount)")
                             .font(.system(size: 8, weight: .semibold))

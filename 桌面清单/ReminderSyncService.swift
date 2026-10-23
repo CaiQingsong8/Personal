@@ -17,7 +17,6 @@ struct CalendarDayReminder: Identifiable, Hashable {
     let hasSpecificTime: Bool
     let isCompleted: Bool
     let listTitle: String
-    let isChecklistLinked: Bool
 
     var displayTitle: String {
         guard hasSpecificTime else { return title }
@@ -187,32 +186,6 @@ final class ReminderSyncService: ObservableObject {
         Task {
             let fetched = await fetchReminders(in: [list])
             guard token == monthLoadToken else { return }
-            let tasks = appStore.tasks
-            let pendingDeletions = appStore.pendingReminderDeletions
-            let linkedItemIdentifiers = Set(
-                tasks.compactMap(\.reminderCalendarItemIdentifier) +
-                    pendingDeletions.compactMap(\.itemIdentifier)
-            )
-            var linkedExternalIdentifiers = Set<String>()
-            for task in tasks {
-                if let listID = task.reminderListIdentifier,
-                   let externalID = task.reminderCalendarItemExternalIdentifier {
-                    linkedExternalIdentifiers.insert(externalKey(listID: listID, externalID: externalID))
-                }
-            }
-            for deletion in pendingDeletions {
-                if let listID = deletion.listIdentifier, let externalID = deletion.externalIdentifier {
-                    linkedExternalIdentifiers.insert(externalKey(listID: listID, externalID: externalID))
-                }
-            }
-
-            var externalCounts: [String: Int] = [:]
-            for reminder in fetched {
-                guard let externalID = reminder.calendarItemExternalIdentifier,
-                      let listID = reminder.calendar?.calendarIdentifier else { continue }
-                externalCounts[externalKey(listID: listID, externalID: externalID), default: 0] += 1
-            }
-
             var result: [Date: [CalendarDayReminder]] = [:]
             for reminder in fetched {
                 guard let title = reminder.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty else { continue }
@@ -222,22 +195,13 @@ final class ReminderSyncService: ObservableObject {
                 )
                 let day = due.date.startOfDay
                 guard day >= interval.start && day < interval.end else { continue }
-                let linkedByTaskURL = taskID(in: reminder) != nil
-                let linkedByItemIdentifier = linkedItemIdentifiers.contains(reminder.calendarItemIdentifier)
-                var linkedByExternalIdentifier = false
-                if let externalID = reminder.calendarItemExternalIdentifier,
-                   let listID = reminder.calendar?.calendarIdentifier {
-                    let key = externalKey(listID: listID, externalID: externalID)
-                    linkedByExternalIdentifier = externalCounts[key] == 1 && linkedExternalIdentifiers.contains(key)
-                }
                 let item = CalendarDayReminder(
                     id: reminder.calendarItemIdentifier,
                     title: title,
                     dueDate: due.date,
                     hasSpecificTime: due.hasSpecificTime,
                     isCompleted: reminder.isCompleted,
-                    listTitle: reminder.calendar?.title ?? Self.reminderListName,
-                    isChecklistLinked: linkedByTaskURL || linkedByItemIdentifier || linkedByExternalIdentifier
+                    listTitle: reminder.calendar?.title ?? Self.reminderListName
                 )
                 result[day, default: []].append(item)
             }
@@ -309,7 +273,7 @@ final class ReminderSyncService: ObservableObject {
         let selected = all.filter { $0.calendar?.calendarIdentifier == list.calendarIdentifier }
             .filter { !identifiersBeingDeleted.contains($0.calendarItemIdentifier) }
             .filter { $0.title?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }
-        var tasks = appStore.tasks
+        var items = appStore.reminderItems
         var added = 0
         var updated = 0
         var conflicts = 0
@@ -325,25 +289,25 @@ final class ReminderSyncService: ObservableObject {
             guard due.date >= range.start && due.date < range.end else { continue }
             if isPendingDeletion(reminder, matching: appStore.pendingReminderDeletions, among: all) { continue }
 
-            let itemID = reminder.calendarItemIdentifier
+            let itemIdentifier = reminder.calendarItemIdentifier
             let sourceID = taskID(in: reminder)
-            let directIndex = sourceID.flatMap { taskID in tasks.firstIndex { $0.id == taskID } }
-                ?? tasks.firstIndex { $0.reminderCalendarItemIdentifier == itemID }
+            let directIndex = sourceID.flatMap { itemID in items.firstIndex { $0.id == itemID } }
+                ?? items.firstIndex { $0.reminderCalendarItemIdentifier == itemIdentifier }
             let externalID = reminder.calendarItemExternalIdentifier
             let listID = reminder.calendar?.calendarIdentifier
             let externalMatches = externalID.map { value in
                 selected.filter { $0.calendarItemExternalIdentifier == value }.count
             } ?? 0
-            let externalTaskIndices = externalID.map { value in
-                tasks.indices.filter { index in
-                    tasks[index].reminderCalendarItemExternalIdentifier == value &&
-                        (tasks[index].reminderListIdentifier == listID || externalMatches == 1)
+            let externalItemIndices = externalID.map { value in
+                items.indices.filter { index in
+                    items[index].reminderCalendarItemExternalIdentifier == value &&
+                        (items[index].reminderListIdentifier == listID || externalMatches == 1)
                 }
             } ?? []
-            let externalIndex = externalTaskIndices.count == 1 ? externalTaskIndices.first : nil
+            let externalIndex = externalItemIndices.count == 1 ? externalItemIndices.first : nil
             let index = directIndex ?? externalIndex
 
-            if externalTaskIndices.count > 1 || (externalMatches > 1 && tasks.contains(where: {
+            if externalItemIndices.count > 1 || (externalMatches > 1 && items.contains(where: {
                 $0.reminderCalendarItemExternalIdentifier == externalID &&
                     $0.reminderListIdentifier == listID
             })) {
@@ -351,29 +315,29 @@ final class ReminderSyncService: ObservableObject {
                 continue
             }
 
-            let taskID = index.map { tasks[$0].id } ?? sourceID ?? UUID()
-            guard !processed.contains(taskID) else {
+            let itemID = index.map { items[$0].id } ?? sourceID ?? UUID()
+            guard !processed.contains(itemID) else {
                 conflicts += 1
                 continue
             }
-            _ = attachTaskIdentity(taskID, to: reminder)
+            _ = attachTaskIdentity(itemID, to: reminder)
             let freshIdentifier = reminder.calendarItemIdentifier
 
             if let index {
-                tasks[index].title = reminder.title ?? tasks[index].title
-                tasks[index].notes = reminder.notes ?? ""
-                tasks[index].dueDate = due.date
-                tasks[index].hasSpecificTime = due.hasSpecificTime
-                tasks[index].isCompleted = reminder.isCompleted
-                tasks[index].completedAt = reminder.isCompleted ? (reminder.completionDate ?? tasks[index].completedAt ?? now) : nil
-                tasks[index].reminderCalendarItemIdentifier = freshIdentifier
-                tasks[index].reminderCalendarItemExternalIdentifier = reminder.calendarItemExternalIdentifier
-                tasks[index].reminderListIdentifier = reminder.calendar?.calendarIdentifier
-                tasks[index].reminderSyncedAt = now
+                items[index].title = reminder.title ?? items[index].title
+                items[index].notes = reminder.notes ?? ""
+                items[index].dueDate = due.date
+                items[index].hasSpecificTime = due.hasSpecificTime
+                items[index].isCompleted = reminder.isCompleted
+                items[index].completedAt = reminder.isCompleted ? (reminder.completionDate ?? items[index].completedAt ?? now) : nil
+                items[index].reminderCalendarItemIdentifier = freshIdentifier
+                items[index].reminderCalendarItemExternalIdentifier = reminder.calendarItemExternalIdentifier
+                items[index].reminderListIdentifier = reminder.calendar?.calendarIdentifier
+                items[index].reminderSyncedAt = now
                 updated += 1
             } else {
-                tasks.append(TodoItem(
-                    id: taskID,
+                items.append(ReminderItem(
+                    id: itemID,
                     title: reminder.title ?? "提醒事项",
                     notes: reminder.notes ?? "",
                     dueDate: due.date,
@@ -389,10 +353,10 @@ final class ReminderSyncService: ObservableObject {
                 ))
                 added += 1
             }
-            processed.insert(taskID)
+            processed.insert(itemID)
         }
 
-        appStore.applyReminderTasks(tasks)
+        appStore.applyReminderItems(items)
         statusMessage = "已从“\(list.title)”导入：新增 \(added)，更新 \(updated)，删除 \(deletionSummary.removed)，待重试 \(deletionSummary.pending)，冲突 \(conflicts)"
     }
 
@@ -410,26 +374,26 @@ final class ReminderSyncService: ObservableObject {
 
         let all = await fetchReminders(in: eventStore.calendars(for: .reminder))
         let deletionSummary = syncPendingDeletions(in: appStore, reminders: all)
-        var tasks = appStore.tasks
+        var items = appStore.reminderItems
         var created = 0
         var updated = 0
         var moved = 0
         var conflicts = 0
         let now = Date()
         let range = transferRange
-        let eligibleTaskCount = tasks.filter { $0.dueDate >= range.start && $0.dueDate < range.end }.count
-        var processedTaskCount = 0
+        let eligibleItemCount = items.filter { $0.dueDate >= range.start && $0.dueDate < range.end }.count
+        var processedItemCount = 0
 
-        for index in tasks.indices {
-            let task = tasks[index]
-            guard task.dueDate >= range.start && task.dueDate < range.end else { continue }
-            processedTaskCount += 1
-            let matches = matchingReminders(for: task, in: all)
+        for index in items.indices {
+            let item = items[index]
+            guard item.dueDate >= range.start && item.dueDate < range.end else { continue }
+            processedItemCount += 1
+            let matches = matchingReminders(for: item, in: all)
             guard matches.count <= 1 else { conflicts += 1; continue }
             let existing = matches.first
-            if existing == nil && (task.reminderCalendarItemIdentifier != nil ||
-                                   task.reminderCalendarItemExternalIdentifier != nil ||
-                                   task.reminderListIdentifier != nil) {
+            if existing == nil && (item.reminderCalendarItemIdentifier != nil ||
+                                   item.reminderCalendarItemExternalIdentifier != nil ||
+                                   item.reminderListIdentifier != nil) {
                 conflicts += 1
                 continue
             }
@@ -437,39 +401,39 @@ final class ReminderSyncService: ObservableObject {
             let reminder = existing ?? EKReminder(eventStore: eventStore)
             let shouldMove = existing.map { $0.calendar?.calendarIdentifier != destination.calendarIdentifier } ?? false
             reminder.calendar = destination
-            reminder.title = task.title
-            reminder.notes = task.notes.isEmpty ? nil : task.notes
+            reminder.title = item.title
+            reminder.notes = item.notes.isEmpty ? nil : item.notes
             reminder.dueDateComponents = ReminderDateSemantics.components(
-                from: task.dueDate,
-                hasSpecificTime: task.hasSpecificTime ?? false
+                from: item.dueDate,
+                hasSpecificTime: item.hasSpecificTime ?? false
             )
-            reminder.isCompleted = task.isCompleted
-            reminder.completionDate = task.isCompleted ? (task.completedAt ?? now) : nil
+            reminder.isCompleted = item.isCompleted
+            reminder.completionDate = item.isCompleted ? (item.completedAt ?? now) : nil
             if reminder.url == nil || isDeskFlowReminderURL(reminder.url) {
-                reminder.url = URL(string: "deskflow://reminder/\(task.id.uuidString)")
+                reminder.url = URL(string: "deskflow://reminder/\(item.id.uuidString)")
             }
 
             do {
                 try eventStore.save(reminder, commit: true)
-                tasks[index].reminderCalendarItemIdentifier = reminder.calendarItemIdentifier
-                tasks[index].reminderCalendarItemExternalIdentifier = reminder.calendarItemExternalIdentifier
-                tasks[index].reminderListIdentifier = reminder.calendar?.calendarIdentifier
-                tasks[index].reminderSyncedAt = now
+                items[index].reminderCalendarItemIdentifier = reminder.calendarItemIdentifier
+                items[index].reminderCalendarItemExternalIdentifier = reminder.calendarItemExternalIdentifier
+                items[index].reminderListIdentifier = reminder.calendar?.calendarIdentifier
+                items[index].reminderSyncedAt = now
                 if existing == nil { created += 1 }
                 else if shouldMove { moved += 1 }
                 else { updated += 1 }
             } catch {
-                if created + updated + moved > 0 { appStore.applyReminderTasks(tasks) }
+                if created + updated + moved > 0 { appStore.applyReminderItems(items) }
                 statusMessage = "写入中断：新增 \(created)，更新 \(updated)，移入所选列表 \(moved)，删除 \(deletionSummary.removed)，待重试 \(deletionSummary.pending)；\(error.localizedDescription)"
                 return
             }
 
-            if processedTaskCount.isMultiple(of: 10) {
-                statusMessage = "正在同步到“\(destination.title)”：已检查 \(processedTaskCount)/\(eligibleTaskCount) 项…"
+            if processedItemCount.isMultiple(of: 10) {
+                statusMessage = "正在同步到“\(destination.title)”：已检查 \(processedItemCount)/\(eligibleItemCount) 项…"
                 await Task.yield()
             }
         }
-        if created + updated + moved > 0 { appStore.applyReminderTasks(tasks) }
+        if created + updated + moved > 0 { appStore.applyReminderItems(items) }
         statusMessage = "已写入“\(destination.title)”：新增 \(created)，更新 \(updated)，移入所选列表 \(moved)，删除 \(deletionSummary.removed)，待重试 \(deletionSummary.pending)，未安全匹配 \(conflicts)"
     }
 
@@ -544,7 +508,7 @@ final class ReminderSyncService: ObservableObject {
         "\(listID)\u{1F}\(externalID)"
     }
 
-    private func matchingReminders(for task: TodoItem, in reminders: [EKReminder]) -> [EKReminder] {
+    private func matchingReminders(for task: ReminderItem, in reminders: [EKReminder]) -> [EKReminder] {
         var candidates = reminders
         if let identifier = task.reminderCalendarItemIdentifier,
            let item = eventStore.calendarItem(withIdentifier: identifier) as? EKReminder {

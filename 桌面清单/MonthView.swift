@@ -7,7 +7,7 @@ struct MonthView: View {
     @EnvironmentObject private var calendarSync: CalendarSyncService
     @EnvironmentObject private var reminderSync: ReminderSyncService
     @AppStorage("DeskFlowShowMonthTasks") private var showsTasks = true
-    @AppStorage("DeskFlowShowMonthCalendarEvents") private var showsCalendarEvents = true
+    @AppStorage("DeskFlowShowMonthCalendarEvents") private var showsCalendarEvents = false
     @AppStorage("DeskFlowShowMonthFocus") private var showsFocus = true
     @AppStorage("DeskFlowShowMonthReminders") private var showsReminders = true
     private let weekdays = ["一", "二", "三", "四", "五", "六", "日"]
@@ -54,14 +54,14 @@ struct MonthView: View {
                 layerButton("Mac 日历", icon: "calendar", color: .orange, isOn: showsCalendarEvents) {
                     showsCalendarEvents.toggle()
                 }
-                .help("显示或隐藏普通 Mac 日历事项；节日始终显示，已关联清单的事项只显示在清单中")
+                .help("显示或隐藏普通 Mac 日历日程；节日与节气始终显示")
                 layerButton("专注", icon: "leaf.fill", color: .green, isOn: showsFocus) {
                     showsFocus.toggle()
                 }
                 layerButton("提醒事项", icon: "checklist", color: .purple, isOn: showsReminders) {
                     showsReminders.toggle()
                 }
-                .help("显示或隐藏所选 Mac 提醒事项列表；已关联清单的事项只显示在任务中")
+                .help("显示或隐藏所选 Mac 提醒事项列表")
             }
             .padding(.horizontal, 12)
 
@@ -83,8 +83,10 @@ struct MonthView: View {
             calendarSync.loadMonthEvents(containing: month, appStore: store)
             reminderSync.loadMonthReminders(containing: month, appStore: store)
         }
-        .onChange(of: store.tasks) { _ in
+        .onChange(of: store.calendarSchedules) { _ in
             calendarSync.loadMonthEvents(containing: store.displayedMonth, appStore: store)
+        }
+        .onChange(of: store.reminderItems) { _ in
             reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)
         }
         .onChange(of: store.pendingCalendarDeletions) { _ in
@@ -186,14 +188,21 @@ struct MonthView: View {
 private struct CalendarSyncPanel: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var calendarSync: CalendarSyncService
+    @State private var showScheduleManager = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
-                Image(systemName: "calendar.badge.arrowtriangle.2.circlepath")
-                    .foregroundStyle(Color.accentColor)
-                Text("Mac 日历同步")
-                    .font(.caption.weight(.semibold))
+                Button { showScheduleManager = true } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "calendar.badge.arrowtriangle.2.circlepath")
+                            .foregroundStyle(Color.accentColor)
+                        Text("Mac 日历同步" + (store.calendarSchedules.isEmpty ? "" : " · 日程 \(store.calendarSchedules.count)"))
+                            .font(.caption.weight(.semibold))
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("点击管理已导入的 Mac 日程；修改后同步可回写")
                 Spacer(minLength: 4)
                 Text(calendarSync.isAuthorized ? "已连接" : "未连接")
                     .font(.system(size: 9, weight: .medium))
@@ -297,10 +306,15 @@ private struct CalendarSyncPanel: View {
         .padding(.vertical, 7)
         .background(Color.primary.opacity(0.035))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .sheet(isPresented: $showScheduleManager) {
+            CalendarScheduleManagementView()
+                .environmentObject(store)
+                .environmentObject(calendarSync)
+        }
     }
 }
 
-private struct ReminderSyncPanel: View {
+struct ReminderSyncPanel: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var reminderSync: ReminderSyncService
 
@@ -431,14 +445,14 @@ struct DayCell: View {
         calendarSync.calendarEvents(on: date).filter {
             CalendarEventVisibility.shouldShow(
                 isHoliday: $0.isHoliday,
-                isChecklistLinked: $0.isChecklistLinked,
+                isSolarTerm: $0.isSolarTerm,
                 showsCalendarEvents: showsCalendarEvents
             )
         }
     }
     private var focusSeconds: Int { showsFocus ? store.focusSeconds(on: date) : 0 }
     private var reminders: [CalendarDayReminder] {
-        showsReminders ? reminderSync.reminders(on: date).filter { !$0.isChecklistLinked } : []
+        showsReminders ? reminderSync.reminders(on: date) : []
     }
 
     var body: some View {

@@ -11,10 +11,15 @@ struct StatsView: View {
     private var weekSeconds: Int { store.focusSeconds(from: weekStart, to: weekEnd) }
     private var completedThisMonth: Int {
         guard let interval = Calendar.current.dateInterval(of: .month, for: Date()) else { return 0 }
-        return store.tasks.filter { task in
+        let taskCompletions = store.tasks.filter { task in
             guard let date = task.completedAt else { return false }
             return date >= interval.start && date < interval.end
         }.count
+        let reminderCompletions = store.reminderItems.filter { item in
+            guard let date = item.completedAt else { return false }
+            return date >= interval.start && date < interval.end
+        }.count
+        return taskCompletions + reminderCompletions
     }
 
     var body: some View {

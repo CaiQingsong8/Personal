@@ -10,7 +10,6 @@ struct DeskFlowSelfTest {
         let legacyDecoder = JSONDecoder()
         legacyDecoder.dateDecodingStrategy = .iso8601
         let legacyTask = try legacyDecoder.decode(TodoItem.self, from: Data(legacyJSON.utf8))
-        precondition(legacyTask.calendarEventIdentifier == nil)
         precondition(legacyTask.hasSpecificTime == nil)
 
         let store = AppStore.shared

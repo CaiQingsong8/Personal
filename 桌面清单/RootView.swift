@@ -165,7 +165,7 @@ struct DataMenuView: View {
             Divider()
             Label("Mac 日历显示与同步", systemImage: "calendar.badge.arrowtriangle.2.circlepath")
                 .font(.subheadline.weight(.medium))
-            Text("请在月历页底部选择日历并执行导入或同步。清单和日历中的关联事项会按任务 ID 更新或删除。")
+            Text("请在月历页选择日历并执行导入或同步。这里只互传 Mac 日历日程；本地清单任务与日程保持独立。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

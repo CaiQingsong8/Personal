@@ -60,12 +60,38 @@ struct CalendarSemanticsTests {
         precondition(timedComponents.hour == 9 && timedComponents.minute == 30)
 
         let legacyDataJSON = """
-        {"tasks":[],"focusRecords":[],"timer":null,"pendingCalendarDeletions":[]}
+        {
+          "tasks": [
+            {"id":"00000000-0000-0000-0000-000000000001","title":"本地","notes":"","dueDate":"2026-10-22T00:00:00Z","isCompleted":false,"createdAt":"2026-10-21T00:00:00Z"},
+            {"id":"00000000-0000-0000-0000-000000000002","title":"日程","notes":"","dueDate":"2026-10-22T09:00:00Z","isCompleted":false,"createdAt":"2026-10-21T00:00:00Z","calendarEventIdentifier":"event-2","calendarIdentifier":"calendar-2"},
+            {"id":"00000000-0000-0000-0000-000000000003","title":"提醒","notes":"","dueDate":"2026-10-22T00:00:00Z","isCompleted":false,"createdAt":"2026-10-21T00:00:00Z","reminderCalendarItemIdentifier":"reminder-3","reminderListIdentifier":"list-3"},
+            {"id":"00000000-0000-0000-0000-000000000004","title":"双关联","notes":"","dueDate":"2026-10-22T00:00:00Z","isCompleted":false,"createdAt":"2026-10-21T00:00:00Z","calendarEventIdentifier":"event-4","calendarIdentifier":"calendar-4","reminderCalendarItemIdentifier":"reminder-4","reminderListIdentifier":"list-4"}
+          ],
+          "focusRecords": [],
+          "timer": null,
+          "pendingCalendarDeletions": [{"taskID":"00000000-0000-0000-0000-000000000002","eventIdentifier":"event-2","externalIdentifier":null,"calendarIdentifier":"calendar-2"}],
+          "pendingReminderDeletions": [{"taskID":"00000000-0000-0000-0000-000000000003","itemIdentifier":"reminder-3","externalIdentifier":null,"listIdentifier":"list-3"}]
+        }
         """
         let legacyDecoder = JSONDecoder()
         legacyDecoder.dateDecodingStrategy = .iso8601
         let legacyData = try legacyDecoder.decode(PersistedData.self, from: Data(legacyDataJSON.utf8))
-        precondition(legacyData.pendingReminderDeletions.isEmpty)
+        precondition(legacyData.didMigrateLegacyRecords)
+        precondition(legacyData.tasks.count == 1 && legacyData.tasks[0].title == "本地")
+        precondition(legacyData.calendarSchedules.count == 2)
+        precondition(legacyData.reminderItems.count == 2)
+        precondition(legacyData.pendingCalendarDeletions.count == 1)
+        precondition(legacyData.pendingReminderDeletions.count == 1)
+        let dualID = UUID(uuidString: "00000000-0000-0000-0000-000000000004")!
+        precondition(legacyData.calendarSchedules.contains(where: { $0.id == dualID }))
+        precondition(legacyData.reminderItems.contains(where: { $0.id == dualID }))
+        precondition(!legacyData.tasks.contains(where: { $0.id == dualID }))
+        let legacyEncoder = JSONEncoder()
+        legacyEncoder.dateEncodingStrategy = .iso8601
+        let migratedData = try legacyEncoder.encode(legacyData)
+        let reloadedData = try legacyDecoder.decode(PersistedData.self, from: migratedData)
+        precondition(!reloadedData.didMigrateLegacyRecords)
+        precondition(reloadedData.tasks.count == 1 && reloadedData.calendarSchedules.count == 2 && reloadedData.reminderItems.count == 2)
 
         let nowAt1445 = makeDate(2026, 10, 22, hour: 14, minute: 45, second: 10, calendar: calendar)
         let nextHourStart = TaskScheduleDefaults.startDate(on: selectedDay, now: nowAt1445, calendar: calendar)
@@ -75,10 +101,11 @@ struct CalendarSemanticsTests {
         precondition(CalendarEventVisibility.isHolidayCalendar(named: "中国大陆节假日"))
         precondition(CalendarEventVisibility.isHolidayCalendar(named: "US Holidays"))
         precondition(!CalendarEventVisibility.isHolidayCalendar(named: "Team Projects"))
-        precondition(CalendarEventVisibility.shouldShow(isHoliday: true, isChecklistLinked: false, showsCalendarEvents: false))
-        precondition(!CalendarEventVisibility.shouldShow(isHoliday: false, isChecklistLinked: false, showsCalendarEvents: false))
-        precondition(CalendarEventVisibility.shouldShow(isHoliday: false, isChecklistLinked: false, showsCalendarEvents: true))
-        precondition(!CalendarEventVisibility.shouldShow(isHoliday: true, isChecklistLinked: true, showsCalendarEvents: true))
+        precondition(CalendarEventVisibility.shouldShow(isHoliday: true, showsCalendarEvents: false))
+        precondition(CalendarEventVisibility.shouldShow(isHoliday: false, isSolarTerm: true, showsCalendarEvents: false))
+        precondition(!CalendarEventVisibility.shouldShow(isHoliday: false, showsCalendarEvents: false))
+        precondition(CalendarEventVisibility.shouldShow(isHoliday: false, showsCalendarEvents: true))
+        precondition(CalendarEventVisibility.isSolarTerm(named: "霜降"))
 
         let taskID = UUID()
         let linkedInOldCalendar = CalendarEventIdentity(

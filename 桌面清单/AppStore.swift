@@ -8,6 +8,8 @@ final class AppStore: ObservableObject {
     static let shared = AppStore()
 
     @Published private(set) var tasks: [TodoItem] = []
+    @Published private(set) var calendarSchedules: [CalendarSchedule] = []
+    @Published private(set) var reminderItems: [ReminderItem] = []
     @Published private(set) var focusRecords: [FocusRecord] = []
     @Published private(set) var pendingCalendarDeletions: [PendingCalendarDeletion] = []
     @Published private(set) var pendingReminderDeletions: [PendingReminderDeletion] = []
@@ -24,6 +26,7 @@ final class AppStore: ObservableObject {
     private var timer: Timer?
     private var timerEndDate: Date?
     private var sessionStartedAt: Date?
+    private var persistenceBlockedByDecodeFailure = false
 
     private let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
@@ -58,10 +61,11 @@ final class AppStore: ObservableObject {
     var dataFile: URL { dataDirectory.appendingPathComponent("data.json") }
 
     var timerTaskTitle: String {
-        guard let id = timerTaskID, let task = tasks.first(where: { $0.id == id }) else {
-            return "未绑定任务"
-        }
-        return task.title
+        guard let id = timerTaskID else { return "未绑定任务" }
+        return tasks.first(where: { $0.id == id })?.title
+            ?? reminderItems.first(where: { $0.id == id })?.title
+            ?? calendarSchedules.first(where: { $0.id == id })?.title
+            ?? "未绑定任务"
     }
 
     var elapsedSeconds: Int {
@@ -74,6 +78,15 @@ final class AppStore: ObservableObject {
             .sorted {
                 if $0.isCompleted != $1.isCompleted { return !$0.isCompleted }
                 return $0.createdAt < $1.createdAt
+            }
+    }
+
+    func reminderItems(on date: Date) -> [ReminderItem] {
+        reminderItems
+            .filter { Calendar.current.isDate($0.dueDate, inSameDayAs: date) }
+            .sorted {
+                if $0.isCompleted != $1.isCompleted { return !$0.isCompleted }
+                return $0.dueDate < $1.dueDate
             }
     }
 
@@ -106,8 +119,77 @@ final class AppStore: ObservableObject {
         save()
     }
 
-    func applyCalendarTasks(_ calendarTasks: [TodoItem]) {
-        tasks = calendarTasks
+    func addReminderItem(title: String, dueDate: Date? = nil) {
+        let clean = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        let date = dueDate ?? selectedDate
+        reminderItems.append(ReminderItem(title: clean, dueDate: date.startOfDay, createdAt: Date()))
+        save()
+    }
+
+    func updateReminderItem(_ item: ReminderItem) {
+        guard let index = reminderItems.firstIndex(where: { $0.id == item.id }) else { return }
+        var updated = item
+        updated.localUpdatedAt = Date()
+        reminderItems[index] = updated
+        save()
+    }
+
+    func toggleReminderItem(_ item: ReminderItem) {
+        guard let index = reminderItems.firstIndex(where: { $0.id == item.id }) else { return }
+        reminderItems[index].isCompleted.toggle()
+        reminderItems[index].completedAt = reminderItems[index].isCompleted ? Date() : nil
+        reminderItems[index].localUpdatedAt = Date()
+        save()
+    }
+
+    func deleteReminderItem(_ item: ReminderItem) { deleteReminderItems(ids: [item.id]) }
+
+    func deleteReminderItems(ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        for item in reminderItems where ids.contains(item.id) {
+            if item.reminderCalendarItemIdentifier != nil || item.reminderCalendarItemExternalIdentifier != nil || item.reminderListIdentifier != nil,
+               !pendingReminderDeletions.contains(where: { $0.taskID == item.id }) {
+                pendingReminderDeletions.append(PendingReminderDeletion(
+                    taskID: item.id,
+                    itemIdentifier: item.reminderCalendarItemIdentifier,
+                    externalIdentifier: item.reminderCalendarItemExternalIdentifier,
+                    listIdentifier: item.reminderListIdentifier
+                ))
+            }
+        }
+        reminderItems.removeAll { ids.contains($0.id) }
+        if let timerTaskID, ids.contains(timerTaskID) { self.timerTaskID = nil }
+        save()
+    }
+
+    func deleteCalendarSchedules(ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        for schedule in calendarSchedules where ids.contains(schedule.id) {
+            if schedule.calendarEventIdentifier != nil || schedule.calendarEventExternalIdentifier != nil || schedule.calendarIdentifier != nil,
+               !pendingCalendarDeletions.contains(where: { $0.taskID == schedule.id }) {
+                pendingCalendarDeletions.append(PendingCalendarDeletion(
+                    taskID: schedule.id,
+                    eventIdentifier: schedule.calendarEventIdentifier,
+                    externalIdentifier: schedule.calendarEventExternalIdentifier,
+                    calendarIdentifier: schedule.calendarIdentifier
+                ))
+            }
+        }
+        calendarSchedules.removeAll { ids.contains($0.id) }
+        save()
+    }
+
+    func applyCalendarSchedules(_ schedules: [CalendarSchedule]) {
+        calendarSchedules = schedules
+        save()
+    }
+
+    func updateCalendarSchedule(_ schedule: CalendarSchedule) {
+        guard let index = calendarSchedules.firstIndex(where: { $0.id == schedule.id }) else { return }
+        var updated = schedule
+        updated.localUpdatedAt = Date()
+        calendarSchedules[index] = updated
         save()
     }
 
@@ -117,30 +199,6 @@ final class AppStore: ObservableObject {
 
     func deleteTasks(ids: Set<UUID>) {
         guard !ids.isEmpty else { return }
-        for task in tasks where ids.contains(task.id) {
-            if task.calendarEventIdentifier != nil || task.calendarEventExternalIdentifier != nil || task.calendarIdentifier != nil {
-                if !pendingCalendarDeletions.contains(where: { $0.taskID == task.id }) {
-                    pendingCalendarDeletions.append(PendingCalendarDeletion(
-                        taskID: task.id,
-                        eventIdentifier: task.calendarEventIdentifier,
-                        externalIdentifier: task.calendarEventExternalIdentifier,
-                        calendarIdentifier: task.calendarIdentifier
-                    ))
-                }
-            }
-            if task.reminderCalendarItemIdentifier != nil ||
-                task.reminderCalendarItemExternalIdentifier != nil ||
-                task.reminderListIdentifier != nil {
-                if !pendingReminderDeletions.contains(where: { $0.taskID == task.id }) {
-                    pendingReminderDeletions.append(PendingReminderDeletion(
-                        taskID: task.id,
-                        itemIdentifier: task.reminderCalendarItemIdentifier,
-                        externalIdentifier: task.reminderCalendarItemExternalIdentifier,
-                        listIdentifier: task.reminderListIdentifier
-                    ))
-                }
-            }
-        }
         tasks.removeAll { ids.contains($0.id) }
         if let timerTaskID, ids.contains(timerTaskID) { self.timerTaskID = nil }
         save()
@@ -156,8 +214,8 @@ final class AppStore: ObservableObject {
         save()
     }
 
-    func applyReminderTasks(_ reminderTasks: [TodoItem]) {
-        tasks = reminderTasks
+    func applyReminderItems(_ items: [ReminderItem]) {
+        reminderItems = items
         save()
     }
 
@@ -247,8 +305,8 @@ final class AppStore: ObservableObject {
 
     func exportCSV() {
         let panel = NSSavePanel()
-        panel.title = "导出任务明细"
-        panel.nameFieldStringValue = "桌面清单任务-\(Self.fileDateFormatter.string(from: Date())).csv"
+        panel.title = "导出本地清单任务"
+        panel.nameFieldStringValue = "桌面清单-本地任务-\(Self.fileDateFormatter.string(from: Date())).csv"
         panel.allowedContentTypes = [.commaSeparatedText]
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
@@ -275,7 +333,11 @@ final class AppStore: ObservableObject {
     }
 
     private func makeFocusRecord(duration: Int) -> FocusRecord {
-        let title = timerTaskID.flatMap { id in tasks.first(where: { $0.id == id })?.title } ?? "自由专注"
+        let title = timerTaskID.flatMap { id in
+            tasks.first(where: { $0.id == id })?.title
+                ?? reminderItems.first(where: { $0.id == id })?.title
+                ?? calendarSchedules.first(where: { $0.id == id })?.title
+        } ?? "自由专注"
         return FocusRecord(
             taskID: timerTaskID,
             taskTitle: title,
@@ -336,6 +398,8 @@ final class AppStore: ObservableObject {
             let data = try Data(contentsOf: dataFile)
             let decoded = try decoder.decode(PersistedData.self, from: data)
             tasks = decoded.tasks
+            calendarSchedules = decoded.calendarSchedules
+            reminderItems = decoded.reminderItems
             focusRecords = decoded.focusRecords
             pendingCalendarDeletions = decoded.pendingCalendarDeletions
             pendingReminderDeletions = decoded.pendingReminderDeletions
@@ -347,8 +411,10 @@ final class AppStore: ObservableObject {
                 sessionStartedAt = snapshot.startedAt
                 timerTaskID = snapshot.taskID
             }
+            if decoded.didMigrateLegacyRecords { persist() }
         } catch {
             if (error as NSError).code != NSFileReadNoSuchFileError {
+                persistenceBlockedByDecodeFailure = true
                 NSLog("DeskFlow data load failed: %@", error.localizedDescription)
             }
         }
@@ -371,6 +437,8 @@ final class AppStore: ObservableObject {
     private func currentPersistedData() -> PersistedData {
         PersistedData(
             tasks: tasks,
+            calendarSchedules: calendarSchedules,
+            reminderItems: reminderItems,
             focusRecords: focusRecords,
             timer: TimerSnapshot(
                 remainingSeconds: remainingSeconds,
@@ -388,6 +456,7 @@ final class AppStore: ObservableObject {
     private func save() { persist() }
 
     private func persist() {
+        guard !persistenceBlockedByDecodeFailure else { return }
         do {
             try FileManager.default.createDirectory(at: dataDirectory, withIntermediateDirectories: true)
             let data = try encoder.encode(currentPersistedData())

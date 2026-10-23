@@ -7,6 +7,7 @@ struct TaskListView: View {
     @State private var isSelecting = false
     @State private var selectedTaskIDs = Set<UUID>()
     @State private var confirmBatchDelete = false
+    @State private var todaySection = TodaySection.tasks
 
     private var dayTasks: [TodoItem] { store.tasks(on: store.selectedDate) }
     private var recentTasks: [TodoItem] {
@@ -32,66 +33,78 @@ struct TaskListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if isSelecting {
-                batchHeader
-            } else {
-                dateHeader
-                quickAdd
+            Picker("今日内容", selection: $todaySection) {
+                Text("清单").tag(TodaySection.tasks)
+                Text("提醒事项").tag(TodaySection.reminders)
             }
-            selectionBar
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 14)
+            .padding(.top, 8)
 
-            if isSelecting {
-                if recentTaskGroups.isEmpty {
-                    emptyRecentState
+            if todaySection == .tasks {
+                if isSelecting {
+                    batchHeader
                 } else {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 10) {
-                            ForEach(recentTaskGroups) { group in
-                                VStack(alignment: .leading, spacing: 5) {
-                                    HStack {
-                                        Text(Self.groupDateFormatter.string(from: group.date))
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(.secondary)
-                                        Spacer()
-                                        Text("\(group.tasks.count) 项")
-                                            .font(.caption2)
-                                            .foregroundStyle(.tertiary)
+                    dateHeader
+                    quickAdd
+                }
+                selectionBar
+
+                if isSelecting {
+                    if recentTaskGroups.isEmpty {
+                        emptyRecentState
+                    } else {
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 10) {
+                                ForEach(recentTaskGroups) { group in
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        HStack {
+                                            Text(Self.groupDateFormatter.string(from: group.date))
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(.secondary)
+                                            Spacer()
+                                            Text("\(group.tasks.count) 项")
+                                                .font(.caption2)
+                                                .foregroundStyle(.tertiary)
+                                        }
+                                        ForEach(group.tasks) { task in
+                                            TaskRow(task: task, editingTask: $editingTask,
+                                                    isSelecting: true, selectedTaskIDs: $selectedTaskIDs)
                                     }
-                                    ForEach(group.tasks) { task in
-                                        TaskRow(task: task, editingTask: $editingTask,
-                                                isSelecting: true, selectedTaskIDs: $selectedTaskIDs)
                                     }
                                 }
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                        }
+                    }
+                } else if dayTasks.isEmpty {
+                    emptyState
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 5) {
+                            ForEach(dayTasks) { task in
+                                TaskRow(task: task, editingTask: $editingTask,
+                                        isSelecting: false, selectedTaskIDs: $selectedTaskIDs)
                             }
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
                     }
                 }
-            } else if dayTasks.isEmpty {
-                emptyState
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 5) {
-                        ForEach(dayTasks) { task in
-                            TaskRow(task: task, editingTask: $editingTask,
-                                    isSelecting: false, selectedTaskIDs: $selectedTaskIDs)
-                        }
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                }
-            }
 
-            if isSelecting && !selectedTaskIDs.isEmpty {
-                Button("删除已选 \(selectedTaskIDs.count) 项", role: .destructive) {
-                    confirmBatchDelete = true
+                if isSelecting && !selectedTaskIDs.isEmpty {
+                    Button("删除已选 \(selectedTaskIDs.count) 项", role: .destructive) {
+                        confirmBatchDelete = true
+                    }
+                    .padding(.bottom, 8)
                 }
-                .padding(.bottom, 8)
+            } else {
+                ReminderTodayView()
             }
 
             Divider().opacity(0.6)
-            if !isSelecting { FocusTimerView() }
+            if todaySection == .reminders || !isSelecting { FocusTimerView() }
         }
         .sheet(item: $editingTask) { task in
             TaskEditorView(task: task)
@@ -103,7 +116,7 @@ struct TaskListView: View {
                 isSelecting = false
             }
         } message: {
-            Text("将删除最近 30 天（含今天）所选的 \(selectedTaskIDs.count) 项任务。关联的 Mac 日历事项将在下次同步时一并删除。")
+            Text("将删除最近 30 天（含今天）所选的 \(selectedTaskIDs.count) 项本地清单任务。")
         }
         .onChange(of: store.selectedDate) { _ in
             if !isSelecting {
@@ -112,6 +125,12 @@ struct TaskListView: View {
         }
         .onChange(of: store.tasks.map(\.id)) { taskIDs in
             selectedTaskIDs.formIntersection(Set(taskIDs))
+        }
+        .onChange(of: todaySection) { section in
+            if section == .reminders {
+                isSelecting = false
+                selectedTaskIDs.removeAll()
+            }
         }
     }
 
@@ -279,6 +298,405 @@ struct TaskListView: View {
     }()
 }
 
+private enum TodaySection: Hashable {
+    case tasks
+    case reminders
+}
+
+private struct ReminderTodayView: View {
+    @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var reminderSync: ReminderSyncService
+    @State private var newTitle = ""
+    @State private var editingItem: ReminderItem?
+
+    private var items: [ReminderItem] { store.reminderItems(on: store.selectedDate) }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Button {
+                    store.selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: store.selectedDate) ?? store.selectedDate
+                } label: { Image(systemName: "chevron.left") }
+                    .buttonStyle(.plain)
+                Spacer()
+                Button { store.selectedDate = Date().startOfDay } label: {
+                    VStack(spacing: 1) {
+                        Text(Self.dateFormatter.string(from: store.selectedDate))
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        Text(Self.weekdayFormatter.string(from: store.selectedDate))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                Button {
+                    store.selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: store.selectedDate) ?? store.selectedDate
+                } label: { Image(systemName: "chevron.right") }
+                    .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 11)
+
+            HStack(spacing: 8) {
+                Image(systemName: "plus.circle.fill")
+                    .foregroundStyle(Color.purple)
+                TextField("添加提醒事项…", text: $newTitle)
+                    .textFieldStyle(.plain)
+                    .onSubmit(addItem)
+                if !newTitle.isEmpty {
+                    Button("添加", action: addItem)
+                        .buttonStyle(.borderless)
+                }
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 40)
+            .background(Color.primary.opacity(0.045))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal, 14)
+
+            if items.isEmpty {
+                VStack(spacing: 7) {
+                    Spacer()
+                    Image(systemName: "checklist")
+                        .font(.system(size: 28, weight: .light))
+                        .foregroundStyle(Color.purple.opacity(0.8))
+                    Text("这一天还没有提醒事项")
+                        .font(.subheadline.weight(.medium))
+                    Text("导入 Mac 提醒事项，或在上方创建一条。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 5) {
+                        ForEach(items) { item in
+                            ReminderTodayRow(item: item, editingItem: $editingItem)
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                }
+            }
+
+            ReminderSyncPanel()
+                .padding(.horizontal, 10)
+                .padding(.bottom, 5)
+        }
+        .sheet(item: $editingItem) { item in
+            ReminderItemEditorView(item: item)
+        }
+    }
+
+    private func addItem() {
+        store.addReminderItem(title: newTitle, dueDate: store.selectedDate)
+        newTitle = ""
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return formatter
+    }()
+
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "EEEE"
+        return formatter
+    }()
+}
+
+private struct ReminderTodayRow: View {
+    @EnvironmentObject private var store: AppStore
+    let item: ReminderItem
+    @Binding var editingItem: ReminderItem?
+
+    var body: some View {
+        HStack(spacing: 9) {
+            Button { store.toggleReminderItem(item) } label: {
+                Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 19))
+                    .foregroundStyle(item.isCompleted ? Color.purple : Color.secondary.opacity(0.65))
+            }
+            .buttonStyle(.plain)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(.system(size: 14.5, weight: .medium))
+                    .strikethrough(item.isCompleted)
+                    .foregroundStyle(item.isCompleted ? .secondary : .primary)
+                    .lineLimit(2)
+                HStack(spacing: 5) {
+                    if item.hasSpecificTime == true {
+                        Text(Self.timeFormatter.string(from: item.dueDate))
+                    } else {
+                        Text("全天")
+                    }
+                    if item.reminderCalendarItemIdentifier != nil { Text("· Mac 提醒事项") }
+                }
+                .font(.caption2)
+                .foregroundStyle(Color.purple)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { editingItem = item }
+            Spacer(minLength: 4)
+            Button { store.selectTaskForTimer(TodoItem(id: item.id, title: item.title, notes: item.notes, dueDate: item.dueDate)) } label: {
+                Image(systemName: store.timerTaskID == item.id ? "timer.circle.fill" : "timer")
+                    .foregroundStyle(store.timerTaskID == item.id ? Color.accentColor : Color.secondary)
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.plain)
+            Button { editingItem = item } label: {
+                Image(systemName: "ellipsis")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 32, height: 30)
+                    .background(Color.primary.opacity(0.055))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color.purple.opacity(0.045))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .contextMenu {
+            Button("编辑") { editingItem = item }
+            Button("删除", role: .destructive) { store.deleteReminderItem(item) }
+        }
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+}
+
+private struct ReminderItemEditorView: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: ReminderItem
+    @State private var hasSpecificTime: Bool
+
+    init(item: ReminderItem) {
+        _draft = State(initialValue: item)
+        _hasSpecificTime = State(initialValue: item.hasSpecificTime ?? false)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("编辑提醒事项").font(.title3.weight(.semibold))
+            TextField("提醒事项", text: $draft.title).textFieldStyle(.roundedBorder)
+            DatePicker("日期", selection: $draft.dueDate, displayedComponents: [.date])
+            Toggle("指定具体时间", isOn: $hasSpecificTime)
+            if hasSpecificTime {
+                DatePicker("时间", selection: $draft.dueDate, displayedComponents: [.hourAndMinute])
+            }
+            TextEditor(text: $draft.notes)
+                .frame(height: 70)
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.15)))
+            Toggle("已完成", isOn: $draft.isCompleted)
+            HStack {
+                Button("删除", role: .destructive) {
+                    store.deleteReminderItem(draft)
+                    dismiss()
+                }
+                Spacer()
+                Button("取消") { dismiss() }
+                Button("保存") {
+                    draft.hasSpecificTime = hasSpecificTime
+                    if !hasSpecificTime { draft.dueDate = draft.dueDate.startOfDay }
+                    draft.completedAt = draft.isCompleted ? (draft.completedAt ?? Date()) : nil
+                    store.updateReminderItem(draft)
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(22)
+        .frame(width: 360)
+        .onChange(of: hasSpecificTime) { enabled in
+            if enabled && draft.hasSpecificTime != true {
+                draft.dueDate = TaskScheduleDefaults.startDate(on: draft.dueDate)
+            }
+        }
+    }
+}
+
+struct CalendarScheduleManagementView: View {
+    @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var calendarSync: CalendarSyncService
+    @Environment(\.dismiss) private var dismiss
+    @State private var editingSchedule: CalendarSchedule?
+    @State private var scheduleToDelete: CalendarSchedule?
+
+    private var schedules: [CalendarSchedule] {
+        guard let interval = Calendar.current.dateInterval(of: .month, for: store.displayedMonth) else { return [] }
+        return store.calendarSchedules
+            .filter { $0.dueDate >= interval.start && $0.dueDate < interval.end }
+            .sorted { $0.dueDate < $1.dueDate }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("导入的 Mac 日程")
+                        .font(.title3.weight(.semibold))
+                    Text("可以在这里修改；清单任务与日程分开保存。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("关闭") { dismiss() }
+            }
+            .padding(16)
+
+            if schedules.isEmpty {
+                VStack(spacing: 8) {
+                    Spacer()
+                    Image(systemName: "calendar")
+                        .font(.system(size: 28, weight: .light))
+                        .foregroundStyle(Color.orange)
+                    Text("本月还没有导入的日程")
+                        .font(.subheadline.weight(.medium))
+                    Text("先在月历的 Mac 日历面板中点击“导入行程”。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(schedules) { schedule in
+                    HStack(spacing: 10) {
+                        Image(systemName: "calendar")
+                            .foregroundStyle(Color.orange)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(schedule.title).lineLimit(1)
+                            Text(Self.scheduleFormatter.string(from: schedule.dueDate) + (schedule.hasSpecificTime == true ? "" : " · 全天"))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("编辑") { editingSchedule = schedule }
+                            .buttonStyle(.borderless)
+                        Button(role: .destructive) { scheduleToDelete = schedule } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("删除本地日程并在同步时从 Mac 日历移除")
+                    }
+                    .padding(.vertical, 3)
+                }
+                .listStyle(.plain)
+            }
+
+            HStack {
+                Text(calendarSync.statusMessage)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                Spacer()
+                Button {
+                    Task {
+                        await calendarSync.exportToCalendar(from: store)
+                        calendarSync.loadMonthEvents(containing: store.displayedMonth, appStore: store)
+                    }
+                } label: {
+                    Label("同步修改到 Mac 日历", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!calendarSync.isAuthorized || calendarSync.isWorking)
+            }
+            .padding(14)
+        }
+        .frame(width: 540, height: 500)
+        .sheet(item: $editingSchedule) { schedule in
+            CalendarScheduleEditorView(schedule: schedule)
+                .environmentObject(store)
+        }
+        .confirmationDialog("删除这条日程？", isPresented: Binding(
+            get: { scheduleToDelete != nil },
+            set: { if !$0 { scheduleToDelete = nil } }
+        ), presenting: scheduleToDelete) { schedule in
+            Button("删除并在下次同步时从日历移除", role: .destructive) {
+                store.deleteCalendarSchedules(ids: [schedule.id])
+                scheduleToDelete = nil
+            }
+        } message: { _ in
+            Text("删除的是导入的 Mac 日程，不会影响清单任务或提醒事项。")
+        }
+    }
+
+    private static let scheduleFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日 HH:mm"
+        return formatter
+    }()
+}
+
+private struct CalendarScheduleEditorView: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: CalendarSchedule
+    @State private var hasSpecificTime: Bool
+    @State private var durationMinutes: Int
+
+    init(schedule: CalendarSchedule) {
+        _draft = State(initialValue: schedule)
+        _hasSpecificTime = State(initialValue: schedule.hasSpecificTime ?? false)
+        _durationMinutes = State(initialValue: max(30, Int((schedule.calendarDurationSeconds ?? 3600) / 60)))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("编辑日程").font(.title3.weight(.semibold))
+            TextField("日程名称", text: $draft.title).textFieldStyle(.roundedBorder)
+            DatePicker("日期", selection: $draft.dueDate, displayedComponents: [.date])
+            Toggle("指定具体时间", isOn: $hasSpecificTime)
+            if hasSpecificTime {
+                DatePicker("开始时间", selection: $draft.dueDate, displayedComponents: [.hourAndMinute])
+                Stepper(value: $durationMinutes, in: 30...720, step: 30) {
+                    HStack {
+                        Text("日程时长")
+                        Spacer()
+                        Text(durationMinutes % 60 == 0 ? "\(durationMinutes / 60) 小时" : "\(durationMinutes) 分钟")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            TextEditor(text: $draft.notes)
+                .frame(height: 80)
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.15)))
+            HStack {
+                Spacer()
+                Button("取消") { dismiss() }
+                Button("保存修改") {
+                    draft.hasSpecificTime = hasSpecificTime
+                    if hasSpecificTime {
+                        draft.calendarDurationSeconds = TimeInterval(durationMinutes * 60)
+                        draft.calendarAllDaySpanDays = nil
+                    } else {
+                        draft.dueDate = draft.dueDate.startOfDay
+                        draft.calendarDurationSeconds = nil
+                    }
+                    store.updateCalendarSchedule(draft)
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(22)
+        .frame(width: 380)
+    }
+}
+
 private struct TaskDayGroup: Identifiable {
     let date: Date
     let tasks: [TodoItem]
@@ -317,11 +735,6 @@ struct TaskRow: View {
                         .strikethrough(task.isCompleted)
                         .foregroundStyle(task.isCompleted ? .secondary : .primary)
                         .lineLimit(2)
-                    if task.calendarEventIdentifier != nil {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 9))
-                            .foregroundStyle(Color.accentColor)
-                    }
                 }
                 if task.hasSpecificTime ?? false {
                     Text("\(Self.timeFormatter.string(from: task.dueDate)) · \(Self.durationText(task.calendarDurationSeconds ?? 3600))")
@@ -498,15 +911,12 @@ struct TaskEditorView: View {
                 Spacer()
                 Button("取消") { dismiss() }
                 Button("保存") {
-                    let wasSpecificTime = draft.hasSpecificTime ?? false
                     draft.hasSpecificTime = hasSpecificTime
                     if hasSpecificTime {
                         draft.calendarDurationSeconds = TimeInterval(durationMinutes * 60)
-                        draft.calendarAllDaySpanDays = nil
                     } else {
                         draft.dueDate = draft.dueDate.startOfDay
                         draft.calendarDurationSeconds = nil
-                        if wasSpecificTime { draft.calendarAllDaySpanDays = 1 }
                     }
                     draft.completedAt = draft.isCompleted ? (draft.completedAt ?? Date()) : nil
                     store.updateTask(draft)

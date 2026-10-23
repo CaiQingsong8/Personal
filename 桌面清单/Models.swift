@@ -11,6 +11,120 @@ struct TodoItem: Identifiable, Codable, Hashable {
     // Optional fields keep older local JSON backups fully compatible.
     var hasSpecificTime: Bool?
     var calendarDurationSeconds: Double?
+    var localUpdatedAt: Date?
+}
+
+struct CalendarSchedule: Identifiable, Codable, Hashable {
+    var id: UUID = UUID()
+    var title: String
+    var notes: String = ""
+    var dueDate: Date
+    var hasSpecificTime: Bool?
+    var calendarDurationSeconds: Double?
+    var calendarAllDaySpanDays: Int?
+    var calendarEventIdentifier: String?
+    var calendarEventExternalIdentifier: String?
+    var calendarIdentifier: String?
+    var calendarSyncedAt: Date?
+    var localUpdatedAt: Date?
+
+    init(id: UUID = UUID(), title: String, notes: String = "", dueDate: Date,
+         hasSpecificTime: Bool? = nil, calendarDurationSeconds: Double? = nil,
+         calendarAllDaySpanDays: Int? = nil, calendarEventIdentifier: String? = nil,
+         calendarEventExternalIdentifier: String? = nil, calendarIdentifier: String? = nil,
+         calendarSyncedAt: Date? = nil, localUpdatedAt: Date? = nil) {
+        self.id = id
+        self.title = title
+        self.notes = notes
+        self.dueDate = dueDate
+        self.hasSpecificTime = hasSpecificTime
+        self.calendarDurationSeconds = calendarDurationSeconds
+        self.calendarAllDaySpanDays = calendarAllDaySpanDays
+        self.calendarEventIdentifier = calendarEventIdentifier
+        self.calendarEventExternalIdentifier = calendarEventExternalIdentifier
+        self.calendarIdentifier = calendarIdentifier
+        self.calendarSyncedAt = calendarSyncedAt
+        self.localUpdatedAt = localUpdatedAt
+    }
+
+    init(legacy: LegacyTodoItem) {
+        id = legacy.id
+        title = legacy.title
+        notes = legacy.notes
+        dueDate = legacy.dueDate
+        hasSpecificTime = legacy.hasSpecificTime
+        calendarDurationSeconds = legacy.calendarDurationSeconds
+        calendarAllDaySpanDays = legacy.calendarAllDaySpanDays
+        calendarEventIdentifier = legacy.calendarEventIdentifier
+        calendarEventExternalIdentifier = legacy.calendarEventExternalIdentifier
+        calendarIdentifier = legacy.calendarIdentifier
+        calendarSyncedAt = legacy.calendarSyncedAt
+        localUpdatedAt = legacy.localUpdatedAt
+    }
+}
+
+struct ReminderItem: Identifiable, Codable, Hashable {
+    var id: UUID = UUID()
+    var title: String
+    var notes: String = ""
+    var dueDate: Date
+    var isCompleted: Bool = false
+    var createdAt: Date = Date()
+    var completedAt: Date?
+    var hasSpecificTime: Bool?
+    var reminderCalendarItemIdentifier: String?
+    var reminderCalendarItemExternalIdentifier: String?
+    var reminderListIdentifier: String?
+    var reminderSyncedAt: Date?
+    var localUpdatedAt: Date?
+
+    init(id: UUID = UUID(), title: String, notes: String = "", dueDate: Date,
+         isCompleted: Bool = false, createdAt: Date = Date(), completedAt: Date? = nil,
+         hasSpecificTime: Bool? = nil, reminderCalendarItemIdentifier: String? = nil,
+         reminderCalendarItemExternalIdentifier: String? = nil, reminderListIdentifier: String? = nil,
+         reminderSyncedAt: Date? = nil, localUpdatedAt: Date? = nil) {
+        self.id = id
+        self.title = title
+        self.notes = notes
+        self.dueDate = dueDate
+        self.isCompleted = isCompleted
+        self.createdAt = createdAt
+        self.completedAt = completedAt
+        self.hasSpecificTime = hasSpecificTime
+        self.reminderCalendarItemIdentifier = reminderCalendarItemIdentifier
+        self.reminderCalendarItemExternalIdentifier = reminderCalendarItemExternalIdentifier
+        self.reminderListIdentifier = reminderListIdentifier
+        self.reminderSyncedAt = reminderSyncedAt
+        self.localUpdatedAt = localUpdatedAt
+    }
+
+    init(legacy: LegacyTodoItem) {
+        id = legacy.id
+        title = legacy.title
+        notes = legacy.notes
+        dueDate = legacy.dueDate
+        isCompleted = legacy.isCompleted
+        createdAt = legacy.createdAt
+        completedAt = legacy.completedAt
+        hasSpecificTime = legacy.hasSpecificTime
+        reminderCalendarItemIdentifier = legacy.reminderCalendarItemIdentifier
+        reminderCalendarItemExternalIdentifier = legacy.reminderCalendarItemExternalIdentifier
+        reminderListIdentifier = legacy.reminderListIdentifier
+        reminderSyncedAt = legacy.reminderSyncedAt
+        localUpdatedAt = legacy.localUpdatedAt
+    }
+}
+
+struct LegacyTodoItem: Codable {
+    var id: UUID
+    var title: String
+    var notes: String
+    var dueDate: Date
+    var isCompleted: Bool
+    var createdAt: Date
+    var completedAt: Date?
+    var hasSpecificTime: Bool?
+    var calendarDurationSeconds: Double?
     var calendarAllDaySpanDays: Int?
     var calendarEventIdentifier: String?
     var calendarEventExternalIdentifier: String?
@@ -21,6 +135,29 @@ struct TodoItem: Identifiable, Codable, Hashable {
     var reminderListIdentifier: String?
     var reminderSyncedAt: Date?
     var localUpdatedAt: Date?
+
+    var hasCalendarIdentity: Bool {
+        calendarEventIdentifier != nil || calendarEventExternalIdentifier != nil || calendarIdentifier != nil
+    }
+
+    var hasReminderIdentity: Bool {
+        reminderCalendarItemIdentifier != nil || reminderCalendarItemExternalIdentifier != nil || reminderListIdentifier != nil
+    }
+
+    func localTask() -> TodoItem {
+        TodoItem(
+            id: id,
+            title: title,
+            notes: notes,
+            dueDate: dueDate,
+            isCompleted: isCompleted,
+            createdAt: createdAt,
+            completedAt: completedAt,
+            hasSpecificTime: hasSpecificTime,
+            calendarDurationSeconds: calendarDurationSeconds,
+            localUpdatedAt: localUpdatedAt
+        )
+    }
 }
 
 struct CalendarEventIdentity: Hashable {
@@ -176,33 +313,77 @@ struct TimerSnapshot: Codable {
 }
 
 struct PersistedData: Codable {
+    var schemaVersion: Int = 2
     var tasks: [TodoItem] = []
+    var calendarSchedules: [CalendarSchedule] = []
+    var reminderItems: [ReminderItem] = []
     var focusRecords: [FocusRecord] = []
     var timer: TimerSnapshot?
     var pendingCalendarDeletions: [PendingCalendarDeletion] = []
     var pendingReminderDeletions: [PendingReminderDeletion] = []
+    var didMigrateLegacyRecords = false
 
-    init(tasks: [TodoItem] = [], focusRecords: [FocusRecord] = [], timer: TimerSnapshot? = nil,
+    init(tasks: [TodoItem] = [], calendarSchedules: [CalendarSchedule] = [], reminderItems: [ReminderItem] = [],
+         focusRecords: [FocusRecord] = [], timer: TimerSnapshot? = nil,
          pendingCalendarDeletions: [PendingCalendarDeletion] = [],
          pendingReminderDeletions: [PendingReminderDeletion] = []) {
+        self.schemaVersion = 2
         self.tasks = tasks
+        self.calendarSchedules = calendarSchedules
+        self.reminderItems = reminderItems
         self.focusRecords = focusRecords
         self.timer = timer
         self.pendingCalendarDeletions = pendingCalendarDeletions
         self.pendingReminderDeletions = pendingReminderDeletions
+        self.didMigrateLegacyRecords = false
     }
 
     private enum CodingKeys: String, CodingKey {
-        case tasks, focusRecords, timer, pendingCalendarDeletions, pendingReminderDeletions
+        case schemaVersion, tasks, calendarSchedules, reminderItems, focusRecords, timer
+        case pendingCalendarDeletions, pendingReminderDeletions
     }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
-        tasks = try values.decodeIfPresent([TodoItem].self, forKey: .tasks) ?? []
+        let version = try values.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        let oldTasks = try values.decodeIfPresent([LegacyTodoItem].self, forKey: .tasks) ?? []
+        calendarSchedules = try values.decodeIfPresent([CalendarSchedule].self, forKey: .calendarSchedules) ?? []
+        reminderItems = try values.decodeIfPresent([ReminderItem].self, forKey: .reminderItems) ?? []
+        if version < 2 {
+            tasks = []
+            for oldTask in oldTasks {
+                if oldTask.hasCalendarIdentity {
+                    calendarSchedules.append(CalendarSchedule(legacy: oldTask))
+                }
+                if oldTask.hasReminderIdentity {
+                    reminderItems.append(ReminderItem(legacy: oldTask))
+                }
+                if !oldTask.hasCalendarIdentity && !oldTask.hasReminderIdentity {
+                    tasks.append(oldTask.localTask())
+                }
+            }
+            didMigrateLegacyRecords = true
+        } else {
+            tasks = oldTasks.filter { !$0.hasCalendarIdentity && !$0.hasReminderIdentity }.map { $0.localTask() }
+            didMigrateLegacyRecords = false
+        }
+        schemaVersion = 2
         focusRecords = try values.decodeIfPresent([FocusRecord].self, forKey: .focusRecords) ?? []
         timer = try values.decodeIfPresent(TimerSnapshot.self, forKey: .timer)
         pendingCalendarDeletions = try values.decodeIfPresent([PendingCalendarDeletion].self, forKey: .pendingCalendarDeletions) ?? []
         pendingReminderDeletions = try values.decodeIfPresent([PendingReminderDeletion].self, forKey: .pendingReminderDeletions) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(schemaVersion, forKey: .schemaVersion)
+        try values.encode(tasks, forKey: .tasks)
+        try values.encode(calendarSchedules, forKey: .calendarSchedules)
+        try values.encode(reminderItems, forKey: .reminderItems)
+        try values.encode(focusRecords, forKey: .focusRecords)
+        try values.encodeIfPresent(timer, forKey: .timer)
+        try values.encode(pendingCalendarDeletions, forKey: .pendingCalendarDeletions)
+        try values.encode(pendingReminderDeletions, forKey: .pendingReminderDeletions)
     }
 }
 
@@ -265,13 +446,25 @@ enum AllDayDateRange {
 
 enum CalendarEventVisibility {
     private static let holidayCalendarTerms = ["节日", "假日", "节假日", "holiday", "holidays"]
+    private static let solarTermNames = [
+        "立春", "雨水", "惊蛰", "春分", "清明", "谷雨", "立夏", "小满", "芒种", "夏至", "小暑", "大暑",
+        "立秋", "处暑", "白露", "秋分", "寒露", "霜降", "立冬", "小雪", "大雪", "冬至", "小寒", "大寒"
+    ]
 
     static func isHolidayCalendar(named title: String) -> Bool {
         let normalizedTitle = title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
         return holidayCalendarTerms.contains { normalizedTitle.localizedCaseInsensitiveContains($0) }
     }
 
-    static func shouldShow(isHoliday: Bool, isChecklistLinked: Bool, showsCalendarEvents: Bool) -> Bool {
-        !isChecklistLinked && (isHoliday || showsCalendarEvents)
+    static func isSolarTerm(named title: String) -> Bool {
+        solarTermNames.contains { title.localizedCaseInsensitiveContains($0) }
+    }
+
+    static func isSolarTermCalendar(named title: String) -> Bool {
+        title.localizedCaseInsensitiveContains("节气") || title.localizedCaseInsensitiveContains("solar term")
+    }
+
+    static func shouldShow(isHoliday: Bool, isSolarTerm: Bool = false, showsCalendarEvents: Bool) -> Bool {
+        isHoliday || isSolarTerm || showsCalendarEvents
     }
 }

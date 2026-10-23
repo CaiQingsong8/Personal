@@ -21,6 +21,7 @@
 - [x] Mac 提醒事项无截止日期时以创建日期作为截止日期；用户自定义日期予以保留。
 - [x] 月历、统计的主导航不变；兼容 macOS 13 的旧 EventKit 提醒事项授权 API，macOS 14+ 使用完整访问 API。
 - [x] `Info.plist` 更新为 1.6.0 / build 17；Universal 2 应用已构建并安装到 `/Applications/桌面清单.app`。
+- [x] 从当前工作树删除遗留的 1.4.1 安装包；原文件仍可从此前 Git 提交历史恢复。`/Applications` 中只找到最新版 `/Applications/桌面清单.app`。
 
 ## 验证状态
 
@@ -40,6 +41,7 @@
 - 发布包 SHA-256：`374b0c50ae564c3c12ab3c94076589368add2534bf0e23f96dfe3676a373834b`。
 - GitHub Release 页面与附件未能创建：仓库 GitHub MCP 没有 Release 写入接口；已打开 GitHub 新建发布页，但当前 Chrome 自动化读取标签页持续超时，因此不能确认附件上传或 Release 创建成功。不要将标签误认为 Release。
 - 保留既有 Git 提交和标签历史；不覆盖 `v1.5.0`。
+- 当前工作树只保留 1.6.0 构建与安装包；旧版本安装包不留在工作树，历史内容仍在 Git 中。
 
 ## 注意事项
 

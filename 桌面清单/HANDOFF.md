@@ -1,7 +1,7 @@
 # 桌面清单项目交接
 
 > 最后更新：2026-10-23
-> 交接状态：1.6.0 build 17 数据域隔离已实现并验证；发布与真实 EventKit 账户验证状态见下文
+> 交接状态：1.6.0 build 17 已实现、验证并推送到 GitHub main；GitHub Release 附件尚未上传，真实 EventKit 账户验证待完成
 
 ## 仓库定位
 
@@ -35,7 +35,10 @@
 ## 仓库与发行
 
 - 上一正式发行：`v1.5.0`，提交 `1aef76c915bc1b68aac4e9d8b3d3682915e89e8b`，发布页 <https://github.com/CaiQingsong8/Personal/releases/tag/v1.5.0>。
-- `v1.6.0` 发布包与 GitHub Release：待完成本次推送。
+- `v1.6.0` 标注标签目标：`78b4beb80f487575d7222cdac17a9edd8684f458`；该提交已快进推送到 `main` 和 `codex/deskflow-calendar-sync`，并在远端核对确认。
+- 发布包：`DeskFlow-1.6.0-macOS13-Universal.zip`（生成于忽略的 `build/` 目录；ZIP 完整性、Universal 2 架构与签名已验证）。
+- 发布包 SHA-256：`374b0c50ae564c3c12ab3c94076589368add2534bf0e23f96dfe3676a373834b`。
+- GitHub Release 页面与附件未能创建：仓库 GitHub MCP 没有 Release 写入接口；已打开 GitHub 新建发布页，但当前 Chrome 自动化读取标签页持续超时，因此不能确认附件上传或 Release 创建成功。不要将标签误认为 Release。
 - 保留既有 Git 提交和标签历史；不覆盖 `v1.5.0`。
 
 ## 注意事项

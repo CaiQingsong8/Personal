@@ -1,43 +1,46 @@
 # 桌面清单项目交接
 
 > 最后更新：2026-10-23
-> 交接状态：1.5.0 build 16 权限状态修正确认并已安装启动；2026-10-23 数据域隔离设计已获用户确认，规格待用户审阅；真实提醒事项账户和 macOS 13 实机验证待完成
+> 交接状态：1.6.0 build 17 数据域隔离已实现并验证；发布与真实 EventKit 账户验证状态见下文
 
-## 当前状态
-
-- [x] Mac 提醒事项已加入月历第四个图层，可切换显示；同步面板支持选择/创建列表、导入到清单、把清单事项同步到提醒事项。
-- [x] 通过稳定任务 ID 更新已有提醒事项并传播删除，避免重复创建；与清单关联的提醒事项在月历中只显示清单版本。
-- [x] 无截止日期的 Mac 提醒事项按创建日期导入为全天日期；没有创建日期时使用当天日期。清单同步不带时间时不生成跨日事件。
-- [x] macOS 13 Ventura 使用旧 EventKit 提醒事项授权 API；macOS 14+ 使用完整访问 API。Intel 与 Apple Silicon 均包含在 Universal 2 构建中，最低系统版本为 13.0。
-- [x] 修正提醒事项权限状态与底部状态文字不一致：无访问权限时显示当前授权描述；调用授权后按 EventKit 的实时状态反馈；应用从系统设置回到前台时重新读取权限，首次获得完整访问后刷新当月提醒事项。
-- [x] 桌面清单 1.5.0（build 16）已安装到 `/Applications/桌面清单.app` 并通过 LaunchServices 启动。GitHub `v1.5.0` 发布包仍对应 build 15；build 16 是本次修正后的本机验证构建。
-- [ ] 尚未使用真实提醒事项/iCloud 账户点击验证首次授权、双向更新和删除传播；也尚未在接收方 macOS 13 电脑实测启动与权限流程。
-- [ ] 清单 / 日历日程 / Mac 提醒事项数据域隔离设计已获用户确认，规格 `docs/superpowers/specs/2026-10-23-task-calendar-reminder-isolation-design.md` 已整理；等待用户审阅规格后再进入实现。本阶段尚未修改应用代码。
-
-## 仓库与发行
+## 仓库定位
 
 - 仓库：`CaiQingsong8/Personal`
 - 分支：`codex/deskflow-calendar-sync`
-- 提醒事项功能提交：`6a42e1879236530c30cb297b14c1f8b22d04d0c2`
-- 1.5.0 发布提交：`1aef76c915bc1b68aac4e9d8b3d3682915e89e8b`
-- Git 标签：`v1.5.0`（基于 1.5.0 发布提交；从 `v1.4.1` 延续）
-- GitHub Release：<https://github.com/CaiQingsong8/Personal/releases/tag/v1.5.0>
-- 发布包：`DeskFlow-1.5.0-macOS13-Universal.zip`
-- 发布包 SHA-256：`a8f331ee4019266b402c3e76849f016db941cae995ef883f6ab5b4e9921db90c`
-- 应用版本：1.5.0（15）；最低 macOS 13.0
+- 功能提交：`64fc9a9`（`feat: separate checklist calendar and reminder data`）
+- 项目目录：`DeskFlow-dev/桌面清单`
+- 当前版本：1.6.0（build 17），最低 macOS 13.0，Universal 2
 
-## 验证
+## 已完成
 
-- Swift 日历/提醒事项语义回归测试通过；独立数据目录自测通过，未读取或修改用户真实任务数据。
-- 全量源码类型检查通过；x86_64 和 arm64 编译通过；本次安装包签名验证通过；日历语义回归测试通过。
-- 系统确认 `/Applications/桌面清单.app` 的版本为 1.5.0 / build 16。
-- 本次未能读取 EventKit 真实授权账户状态，也未点击验证系统授权弹窗；安装和启动不等同于真实 iCloud 同步验证。
-- 本次未触碰 `~/Library/Application Support/DeskFlow`。
+- [x] 本地清单、Mac 日历日程、Mac 提醒事项拆为独立数据域；旧 JSON 在迁移时按旧标识拆分并保留双向关联记录、专注记录、计时器和删除重试队列。
+- [x] 本地清单只在“今日 / 清单”管理；创建、编辑、完成和删除清单事项不会写入或删除 Mac 日历/提醒事项。
+- [x] 月历保留节假日、节气常显；普通 Mac 日历日程作为独立图层，可单独显示/隐藏。
+- [x] 日历同步只导入 Mac 日历日程；日程可在 DeskFlow 编辑并回写原日历事件，不从本地清单复制日程。
+- [x] 今日增加“清单 / 提醒事项”两个内部分区；提醒事项页面与月历提醒事项图层独立控制。Mac 提醒事项仅与提醒事项数据互传，不会把日历日程或本地清单数据复制进去。
+- [x] Mac 提醒事项无截止日期时以创建日期作为截止日期；用户自定义日期予以保留。
+- [x] 月历、统计的主导航不变；兼容 macOS 13 的旧 EventKit 提醒事项授权 API，macOS 14+ 使用完整访问 API。
+- [x] `Info.plist` 更新为 1.6.0 / build 17；Universal 2 应用已构建并安装到 `/Applications/桌面清单.app`。
 
-## 版本历史与注意事项
+## 验证状态
 
-- `v1.4.1`（`c05356be44448b1292c0f2cf6fc362ef83fc2b23`）之前的日历 UUID 同步和默认 2 小时时段功能仍保留在 Git 历史。
-- 旧版本地归档清理记录保存在 `a5ab71c`、`5ad3029`、`00855ba`；当前工作树仅保留最新版源码和构建目录。
-- 当前仍为 ad-hoc 签名；其他 Mac 首次打开可能需要通过系统安全提示允许。
-- 全天事件的结束值按次日零点排他边界表达。带自定义时间的提醒事项应保留用户设置，不自动折成全天事项。
-- 用户数据目录 `~/Library/Application Support/DeskFlow` 不得随版本清理。
+- [x] Calendar 语义与迁移测试通过（`CALENDAR_SEMANTICS_TESTS_OK`）：覆盖旧版仅清单、仅日历、仅提醒事项、双向关联记录迁移、删除队列保留及节日/节气显隐规则。
+- [x] 隔离数据目录的 AppStore 自测通过（`SELF_TEST_OK`），没有访问真实用户数据目录。
+- [x] macOS 15.4 SDK 下 x86_64 与 arm64 编译通过；最低部署目标为 macOS 13.0；应用签名验证通过。
+- [x] 安装包版本核对为 1.6.0 / build 17。
+- [ ] 真实 iCloud/EventKit 账户中的授权、日程回写、提醒事项双向更新与删除传播仍需在用户图形会话中验证。
+- [ ] 未能从当前 Codex 进程启动已安装应用：LaunchServices 返回 `kLSNoExecutableErr`，直接启动崩溃报告显示 AppKit 在 `NSApplication.sharedApplication` 注册阶段终止，尚未进入 DeskFlow 应用代码。此状态不代表桌面 GUI 登录用户实际启动失败。
+- [ ] 尚未在收件人 macOS 13 电脑上实测安装和授权。
+
+## 仓库与发行
+
+- 上一正式发行：`v1.5.0`，提交 `1aef76c915bc1b68aac4e9d8b3d3682915e89e8b`，发布页 <https://github.com/CaiQingsong8/Personal/releases/tag/v1.5.0>。
+- `v1.6.0` 发布包与 GitHub Release：待完成本次推送。
+- 保留既有 Git 提交和标签历史；不覆盖 `v1.5.0`。
+
+## 注意事项
+
+- 真实用户数据位于 `~/Library/Application Support/DeskFlow`，不得随版本清理。
+- 迁移遇到无法解码的数据时必须保留原文件，不得写入空数据覆盖。
+- 当前应用为 ad-hoc 签名；其他 Mac 首次打开可能需要通过系统安全提示允许。
+- 全天日历事件结束时间按次日零点排他边界表达。

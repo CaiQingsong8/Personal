@@ -2,6 +2,7 @@ import EventKit
 import SwiftUI
 
 struct MonthView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var calendarSync: CalendarSyncService
     @EnvironmentObject private var reminderSync: ReminderSyncService
@@ -88,6 +89,11 @@ struct MonthView: View {
         }
         .onChange(of: store.pendingCalendarDeletions) { _ in
             calendarSync.loadMonthEvents(containing: store.displayedMonth, appStore: store)
+        }
+        .onChange(of: scenePhase) { phase in
+            guard phase == .active,
+                  reminderSync.refreshAuthorizationStatus() else { return }
+            reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)
         }
         .onChange(of: store.pendingReminderDeletions) { _ in
             reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)

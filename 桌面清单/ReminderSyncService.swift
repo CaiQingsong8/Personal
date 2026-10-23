@@ -65,6 +65,8 @@ final class ReminderSyncService: ObservableObject {
         if Self.hasReminderAccess(authorizationStatus) {
             refreshLists()
             statusMessage = "已获得提醒事项访问权限"
+        } else {
+            statusMessage = authorizationDescription
         }
     }
 
@@ -104,17 +106,34 @@ final class ReminderSyncService: ObservableObject {
             } else {
                 granted = try await eventStore.requestAccess(to: .reminder)
             }
-            authorizationStatus = EKEventStore.authorizationStatus(for: .reminder)
-            if granted {
-                refreshLists()
+            refreshAuthorizationStatus()
+            if granted && isAuthorized {
                 statusMessage = "权限已开启，请选择要互传的提醒事项列表"
             } else {
-                statusMessage = "未获得提醒事项权限"
+                statusMessage = authorizationDescription
             }
         } catch {
             authorizationStatus = EKEventStore.authorizationStatus(for: .reminder)
-            statusMessage = "授权失败：\(error.localizedDescription)"
+            refreshLists()
+            statusMessage = "授权失败：\(error.localizedDescription)；\(authorizationDescription)"
         }
+    }
+
+    /// Re-checks privacy settings after the app becomes active.
+    /// Returns true only when full reminder access was newly granted, so the caller can reload month data.
+    @discardableResult
+    func refreshAuthorizationStatus() -> Bool {
+        let wasAuthorized = isAuthorized
+        refreshLists()
+
+        guard isAuthorized else {
+            statusMessage = authorizationDescription
+            return false
+        }
+
+        guard !wasAuthorized else { return false }
+        statusMessage = "权限已开启，请选择要互传的提醒事项列表"
+        return true
     }
 
     func refreshLists() {
@@ -122,6 +141,7 @@ final class ReminderSyncService: ObservableObject {
         guard isAuthorized else {
             lists = []
             monthRemindersByDay = [:]
+            statusMessage = authorizationDescription
             return
         }
 

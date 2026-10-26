@@ -6,8 +6,9 @@ struct ReminderListChoice: Identifiable, Hashable {
     let id: String
     let title: String
     let sourceTitle: String
+    let allowsContentModifications: Bool
 
-    var displayName: String { "\(title) · \(sourceTitle)" }
+    var displayName: String { "\(title) · \(sourceTitle)\(allowsContentModifications ? "" : " · 只读")" }
 }
 
 struct CalendarDayReminder: Identifiable, Hashable {
@@ -71,6 +72,20 @@ final class ReminderSyncService: ObservableObject {
 
     var isAuthorized: Bool { Self.hasReminderAccess(authorizationStatus) }
 
+    var hasSelectedList: Bool {
+        lists.contains { $0.id == selectedListID }
+    }
+
+    var canWriteToSelectedList: Bool {
+        lists.first { $0.id == selectedListID }?.allowsContentModifications == true
+    }
+
+    var connectionStatus: String {
+        guard isAuthorized else { return "未连接" }
+        guard hasSelectedList else { return "已授权" }
+        return canWriteToSelectedList ? "已连接" : "已连接（只读）"
+    }
+
     var authorizationDescription: String {
         if #available(macOS 14.0, *) {
             switch authorizationStatus {
@@ -107,7 +122,7 @@ final class ReminderSyncService: ObservableObject {
             }
             refreshAuthorizationStatus()
             if granted && isAuthorized {
-                statusMessage = "权限已开启，请选择要互传的提醒事项列表"
+                statusMessage = accessStatusMessage
             } else {
                 statusMessage = authorizationDescription
             }
@@ -119,7 +134,7 @@ final class ReminderSyncService: ObservableObject {
     }
 
     /// Re-checks privacy settings after the app becomes active.
-    /// Returns true only when full reminder access was newly granted, so the caller can reload month data.
+    /// Returns true only when full reminder access was newly granted.
     @discardableResult
     func refreshAuthorizationStatus() -> Bool {
         let wasAuthorized = isAuthorized
@@ -131,7 +146,7 @@ final class ReminderSyncService: ObservableObject {
         }
 
         guard !wasAuthorized else { return false }
-        statusMessage = "权限已开启，请选择要互传的提醒事项列表"
+        statusMessage = accessStatusMessage
         return true
     }
 
@@ -145,12 +160,12 @@ final class ReminderSyncService: ObservableObject {
         }
 
         lists = eventStore.calendars(for: .reminder)
-            .filter(\.allowsContentModifications)
             .map {
                 ReminderListChoice(
                     id: $0.calendarIdentifier,
                     title: $0.title,
-                    sourceTitle: $0.source.title
+                    sourceTitle: $0.source.title,
+                    allowsContentModifications: $0.allowsContentModifications
                 )
             }
             .sorted {
@@ -162,6 +177,7 @@ final class ReminderSyncService: ObservableObject {
             let preferred = eventStore.defaultCalendarForNewReminders()?.calendarIdentifier
             selectedListID = lists.first(where: { $0.title == Self.reminderListName })?.id
                 ?? lists.first(where: { $0.id == preferred })?.id
+                ?? lists.first(where: \.allowsContentModifications)?.id
                 ?? lists.first?.id
                 ?? ""
         }
@@ -254,9 +270,9 @@ final class ReminderSyncService: ObservableObject {
     }
 
     func importFromReminders(into appStore: AppStore) async {
-        guard prepareForTransfer() else { return }
+        guard prepareForTransfer(requireWritable: false) else { return }
         guard let list = selectedList else {
-            statusMessage = "请先选择一个可编辑的提醒事项列表"
+            statusMessage = "请先选择一个可访问的提醒事项列表"
             return
         }
         guard !isWorking else { return }
@@ -361,7 +377,7 @@ final class ReminderSyncService: ObservableObject {
     }
 
     func syncToReminders(from appStore: AppStore) async {
-        guard prepareForTransfer() else { return }
+        guard prepareForTransfer(requireWritable: true) else { return }
         guard let destination = selectedList else {
             statusMessage = "请先选择一个可编辑的提醒事项列表"
             return
@@ -446,6 +462,13 @@ final class ReminderSyncService: ObservableObject {
         eventStore.calendars(for: .reminder).first { $0.calendarIdentifier == selectedListID }
     }
 
+    private var accessStatusMessage: String {
+        guard let list = selectedList else { return "已授权，但没有找到可访问的提醒事项列表" }
+        return list.allowsContentModifications
+            ? "已连接“\(list.title)”"
+            : "已连接只读列表“\(list.title)”；可导入，不能写回"
+    }
+
     private static func hasReminderAccess(_ status: EKAuthorizationStatus) -> Bool {
         if #available(macOS 14.0, *) { return status == .fullAccess }
         return status == .authorized
@@ -458,15 +481,19 @@ final class ReminderSyncService: ObservableObject {
         return (start, end)
     }
 
-    private func prepareForTransfer() -> Bool {
+    private func prepareForTransfer(requireWritable: Bool) -> Bool {
         authorizationStatus = EKEventStore.authorizationStatus(for: .reminder)
         guard isAuthorized else {
             statusMessage = "请先允许完整提醒事项访问权限"
             return false
         }
         refreshLists()
-        guard !selectedListID.isEmpty else {
-            statusMessage = "没有可写入的提醒事项列表，请先选择或创建一个列表"
+        guard hasSelectedList else {
+            statusMessage = "没有可访问的提醒事项列表，请先选择或创建一个列表"
+            return false
+        }
+        guard !requireWritable || canWriteToSelectedList else {
+            statusMessage = "所选列表为只读；请选择可编辑列表后再同步写回"
             return false
         }
         return true

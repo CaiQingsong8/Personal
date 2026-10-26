@@ -34,8 +34,8 @@ struct TaskListView: View {
     var body: some View {
         VStack(spacing: 0) {
             Picker("今日内容", selection: $todaySection) {
-                Text("清单").tag(TodaySection.tasks)
-                Text("提醒事项").tag(TodaySection.reminders)
+                Text("任务").tag(TodaySection.tasks)
+                Text("事项").tag(TodaySection.reminders)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal, 14)
@@ -238,14 +238,13 @@ struct TaskListView: View {
             Image(systemName: "plus.circle.fill")
                 .foregroundStyle(Color.accentColor)
                 .font(.system(size: 19))
-            TextField("添加一件要做的事…", text: $newTaskTitle)
+            TextField("添加任务…", text: $newTaskTitle)
                 .textFieldStyle(.plain)
                 .onSubmit(addTask)
-            if !newTaskTitle.isEmpty {
-                Button("添加", action: addTask)
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(Color.accentColor)
-            }
+            Button("添加", action: addTask)
+                .buttonStyle(.borderless)
+                .foregroundStyle(Color.accentColor)
+                .disabled(newTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .padding(.horizontal, 13)
         .frame(height: 42)
@@ -263,7 +262,7 @@ struct TaskListView: View {
                 .foregroundStyle(Color.accentColor.opacity(0.8))
             Text("这一天还没有任务")
                 .font(.subheadline.weight(.medium))
-            Text("在上方输入后按回车即可添加")
+            Text("在上方输入后按回车或点“添加”")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
@@ -272,6 +271,7 @@ struct TaskListView: View {
     }
 
     private func addTask() {
+        guard !newTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         store.addTask(title: newTaskTitle, dueDate: store.selectedDate)
         newTaskTitle = ""
     }
@@ -341,13 +341,12 @@ private struct ReminderTodayView: View {
             HStack(spacing: 8) {
                 Image(systemName: "plus.circle.fill")
                     .foregroundStyle(Color.purple)
-                TextField("添加提醒事项…", text: $newTitle)
+                TextField("添加事项…", text: $newTitle)
                     .textFieldStyle(.plain)
                     .onSubmit(addItem)
-                if !newTitle.isEmpty {
-                    Button("添加", action: addItem)
-                        .buttonStyle(.borderless)
-                }
+                Button("添加", action: addItem)
+                    .buttonStyle(.borderless)
+                    .disabled(newTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             .padding(.horizontal, 12)
             .frame(height: 40)
@@ -361,9 +360,9 @@ private struct ReminderTodayView: View {
                     Image(systemName: "checklist")
                         .font(.system(size: 28, weight: .light))
                         .foregroundStyle(Color.purple.opacity(0.8))
-                    Text("这一天还没有提醒事项")
+                    Text("这一天还没有事项")
                         .font(.subheadline.weight(.medium))
-                    Text("导入 Mac 提醒事项，或在上方创建一条。")
+                    Text("导入 Mac 事项，或在上方创建一条。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -391,6 +390,7 @@ private struct ReminderTodayView: View {
     }
 
     private func addItem() {
+        guard !newTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         store.addReminderItem(title: newTitle, dueDate: store.selectedDate)
         newTitle = ""
     }
@@ -435,7 +435,7 @@ private struct ReminderTodayRow: View {
                     } else {
                         Text("全天")
                     }
-                    if item.reminderCalendarItemIdentifier != nil { Text("· Mac 提醒事项") }
+                    if item.reminderCalendarItemIdentifier != nil { Text("· Mac 事项") }
                 }
                 .font(.caption2)
                 .foregroundStyle(Color.purple)
@@ -488,8 +488,8 @@ private struct ReminderItemEditorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("编辑提醒事项").font(.title3.weight(.semibold))
-            TextField("提醒事项", text: $draft.title).textFieldStyle(.roundedBorder)
+            Text("编辑事项").font(.title3.weight(.semibold))
+            TextField("事项", text: $draft.title).textFieldStyle(.roundedBorder)
             DatePicker("日期", selection: $draft.dueDate, displayedComponents: [.date])
             Toggle("指定具体时间", isOn: $hasSpecificTime)
             if hasSpecificTime {

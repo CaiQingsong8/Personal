@@ -24,6 +24,20 @@ struct CalendarSemanticsTests {
         precondition(defaultComponents.year == 2026 && defaultComponents.month == 10 && defaultComponents.day == 22)
         precondition(defaultComponents.hour == 14 && defaultComponents.minute == 30 && defaultComponents.second == 0)
         precondition(TaskScheduleDefaults.durationSeconds == 2 * 60 * 60)
+        let chainedStart = TaskScheduleDefaults.startDate(
+            on: selectedDay,
+            after: defaultStart.addingTimeInterval(TaskScheduleDefaults.durationSeconds),
+            now: nowAt1427,
+            calendar: calendar
+        )
+        precondition(chainedStart == defaultStart.addingTimeInterval(2 * 60 * 60))
+        let firstTaskStart = TaskScheduleDefaults.startDate(
+            on: selectedDay,
+            after: nil,
+            now: nowAt1427,
+            calendar: calendar
+        )
+        precondition(firstTaskStart == defaultStart)
 
         let reminderCreatedAt = makeDate(2026, 10, 22, hour: 17, minute: 45, second: 0, calendar: calendar)
         let reminderWithoutDueDate = ReminderDateSemantics.dueDate(

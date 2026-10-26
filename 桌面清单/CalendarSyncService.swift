@@ -6,8 +6,9 @@ struct CalendarChoice: Identifiable, Hashable {
     let id: String
     let title: String
     let sourceTitle: String
+    let allowsContentModifications: Bool
 
-    var displayName: String { "\(title) · \(sourceTitle)" }
+    var displayName: String { "\(title) · \(sourceTitle)\(allowsContentModifications ? "" : " · 只读")" }
 }
 
 struct CalendarDayEvent: Identifiable, Hashable {
@@ -74,6 +75,20 @@ final class CalendarSyncService: ObservableObject {
 
     var isAuthorized: Bool { Self.hasEventAccess(authorizationStatus) }
 
+    var hasSelectedCalendar: Bool {
+        calendars.contains { $0.id == selectedCalendarID }
+    }
+
+    var canWriteToSelectedCalendar: Bool {
+        calendars.first { $0.id == selectedCalendarID }?.allowsContentModifications == true
+    }
+
+    var connectionStatus: String {
+        guard isAuthorized else { return "未连接" }
+        guard hasSelectedCalendar else { return "已授权" }
+        return canWriteToSelectedCalendar ? "已连接" : "已连接（只读）"
+    }
+
     var scheduleCalendarName: String {
         let name = scheduleOwnerName.trimmingCharacters(in: .whitespacesAndNewlines)
         return "\(name.isEmpty ? "小唐" : name)日程"
@@ -112,9 +127,9 @@ final class CalendarSyncService: ObservableObject {
                 granted = try await eventStore.requestAccess(to: .event)
             }
             authorizationStatus = EKEventStore.authorizationStatus(for: .event)
-            if granted {
+            if granted && isAuthorized {
                 refreshCalendars()
-                statusMessage = "权限已开启，请选择要互传的日历"
+                statusMessage = accessStatusMessage
             } else {
                 statusMessage = "未获得日历权限"
             }
@@ -132,12 +147,12 @@ final class CalendarSyncService: ObservableObject {
         }
 
         calendars = eventStore.calendars(for: .event)
-            .filter(\.allowsContentModifications)
             .map {
                 CalendarChoice(
                     id: $0.calendarIdentifier,
                     title: $0.title,
-                    sourceTitle: $0.source.title
+                    sourceTitle: $0.source.title,
+                    allowsContentModifications: $0.allowsContentModifications
                 )
             }
             .sorted {
@@ -149,9 +164,25 @@ final class CalendarSyncService: ObservableObject {
             let preferred = eventStore.defaultCalendarForNewEvents?.calendarIdentifier
             selectedCalendarID = calendars.first(where: { $0.title == scheduleCalendarName })?.id
                 ?? calendars.first(where: { $0.id == preferred })?.id
+                ?? calendars.first(where: \.allowsContentModifications)?.id
                 ?? calendars.first?.id
                 ?? ""
         }
+    }
+
+    /// Re-checks EventKit authorization and calendar choices after returning from Settings.
+    @discardableResult
+    func refreshAuthorizationStatus() -> Bool {
+        let wasAuthorized = isAuthorized
+        let oldSelection = selectedCalendarID
+        refreshCalendars()
+        let newlyAuthorized = !wasAuthorized && isAuthorized
+        if !isAuthorized {
+            statusMessage = authorizationDescription
+        } else if newlyAuthorized || oldSelection != selectedCalendarID {
+            statusMessage = accessStatusMessage
+        }
+        return newlyAuthorized
     }
 
     func calendarEvents(on date: Date) -> [CalendarDayEvent] {
@@ -255,9 +286,9 @@ final class CalendarSyncService: ObservableObject {
     }
 
     func importFromCalendar(into appStore: AppStore) async {
-        guard prepareForTransfer() else { return }
+        guard prepareForTransfer(requireWritable: false) else { return }
         guard let calendar = selectedCalendar else {
-            statusMessage = "请先选择一个可编辑日历"
+            statusMessage = "请先选择一个可访问的日历"
             return
         }
 
@@ -354,7 +385,7 @@ final class CalendarSyncService: ObservableObject {
     }
 
     func exportToCalendar(from appStore: AppStore) async {
-        guard prepareForTransfer() else { return }
+        guard prepareForTransfer(requireWritable: true) else { return }
         guard let calendar = selectedCalendar else {
             statusMessage = "请先选择一个可编辑日历"
             return
@@ -448,6 +479,13 @@ final class CalendarSyncService: ObservableObject {
         eventStore.calendars(for: .event).first { $0.calendarIdentifier == selectedCalendarID }
     }
 
+    private var accessStatusMessage: String {
+        guard let calendar = selectedCalendar else { return "已授权，但没有找到可访问的日历" }
+        return calendar.allowsContentModifications
+            ? "已连接“\(calendar.title)”"
+            : "已连接只读日历“\(calendar.title)”；可导入，不能写回"
+    }
+
     private static func hasEventAccess(_ status: EKAuthorizationStatus) -> Bool {
         if #available(macOS 14.0, *) {
             return status == .fullAccess
@@ -461,15 +499,19 @@ final class CalendarSyncService: ObservableObject {
         return (start, end)
     }
 
-    private func prepareForTransfer() -> Bool {
+    private func prepareForTransfer(requireWritable: Bool) -> Bool {
         authorizationStatus = EKEventStore.authorizationStatus(for: .event)
         guard isAuthorized else {
             statusMessage = "请先允许完整日历访问权限"
             return false
         }
         refreshCalendars()
-        guard !selectedCalendarID.isEmpty else {
-            statusMessage = "没有可写入的日历，请先选择或创建一个日历"
+        guard hasSelectedCalendar else {
+            statusMessage = "没有可访问的日历，请先选择或创建一个日历"
+            return false
+        }
+        guard !requireWritable || canWriteToSelectedCalendar else {
+            statusMessage = "所选日历为只读；请选择可编辑日历后再同步写回"
             return false
         }
         return true

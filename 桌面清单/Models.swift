@@ -419,6 +419,15 @@ enum TaskScheduleDefaults {
         day.second = 0
         return calendar.date(from: day) ?? date
     }
+
+    static func startDate(
+        on date: Date,
+        after previousTaskEnd: Date?,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Date {
+        previousTaskEnd ?? startDate(on: date, now: now, calendar: calendar)
+    }
 }
 
 enum AllDayDateRange {

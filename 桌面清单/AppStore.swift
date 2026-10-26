@@ -93,9 +93,18 @@ final class AppStore: ObservableObject {
     func addTask(title: String, dueDate: Date? = nil) {
         let clean = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
+        let taskDate = dueDate ?? selectedDate
+        let calendar = Calendar.current
+        let previousTask = tasks
+            .filter { calendar.isDate($0.dueDate, inSameDayAs: taskDate) }
+            .max { $0.dueDate < $1.dueDate }
+        let previousTaskEnd = previousTask.flatMap { task -> Date? in
+            guard task.hasSpecificTime != false else { return nil }
+            return task.dueDate.addingTimeInterval(task.calendarDurationSeconds ?? TaskScheduleDefaults.durationSeconds)
+        }
         tasks.append(TodoItem(
             title: clean,
-            dueDate: TaskScheduleDefaults.startDate(on: dueDate ?? selectedDate),
+            dueDate: TaskScheduleDefaults.startDate(on: taskDate, after: previousTaskEnd),
             hasSpecificTime: true,
             calendarDurationSeconds: TaskScheduleDefaults.durationSeconds,
             localUpdatedAt: Date()

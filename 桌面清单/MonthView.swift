@@ -48,20 +48,19 @@ struct MonthView: View {
             .scrollIndicators(.hidden)
 
             HStack(spacing: 7) {
-                layerButton("任务", icon: "circle.fill", color: .accentColor, isOn: showsTasks) {
-                    showsTasks.toggle()
+                layerButton("任务", icon: "circle.fill", color: .accentColor, isOn: showsTasks || showsCalendarEvents) {
+                    let shouldShow = !(showsTasks || showsCalendarEvents)
+                    showsTasks = shouldShow
+                    showsCalendarEvents = shouldShow
                 }
-                layerButton("Mac 日历", icon: "calendar", color: .orange, isOn: showsCalendarEvents) {
-                    showsCalendarEvents.toggle()
+                .help("显示或隐藏清单任务及普通 Mac 日历日程；节日与节气始终显示")
+                layerButton("事项", icon: "checklist", color: .purple, isOn: showsReminders) {
+                    showsReminders.toggle()
                 }
-                .help("显示或隐藏普通 Mac 日历日程；节日与节气始终显示")
+                .help("显示或隐藏所选 Mac 事项列表")
                 layerButton("专注", icon: "leaf.fill", color: .green, isOn: showsFocus) {
                     showsFocus.toggle()
                 }
-                layerButton("提醒事项", icon: "checklist", color: .purple, isOn: showsReminders) {
-                    showsReminders.toggle()
-                }
-                .help("显示或隐藏所选 Mac 提醒事项列表")
             }
             .padding(.horizontal, 12)
 
@@ -93,8 +92,10 @@ struct MonthView: View {
             calendarSync.loadMonthEvents(containing: store.displayedMonth, appStore: store)
         }
         .onChange(of: scenePhase) { phase in
-            guard phase == .active,
-                  reminderSync.refreshAuthorizationStatus() else { return }
+            guard phase == .active else { return }
+            calendarSync.refreshAuthorizationStatus()
+            reminderSync.refreshAuthorizationStatus()
+            calendarSync.loadMonthEvents(containing: store.displayedMonth, appStore: store)
             reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)
         }
         .onChange(of: store.pendingReminderDeletions) { _ in
@@ -104,6 +105,8 @@ struct MonthView: View {
             reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)
         }
         .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
+            calendarSync.refreshCalendars()
+            reminderSync.refreshLists()
             calendarSync.loadMonthEvents(containing: store.displayedMonth, appStore: store)
             reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)
         }
@@ -204,15 +207,15 @@ private struct CalendarSyncPanel: View {
                 .buttonStyle(.plain)
                 .help("点击管理已导入的 Mac 日程；修改后同步可回写")
                 Spacer(minLength: 4)
-                Text(calendarSync.isAuthorized ? "已连接" : "未连接")
+                Text(calendarSync.connectionStatus)
                     .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(calendarSync.isAuthorized ? Color.green : Color.secondary)
+                    .foregroundStyle(calendarSync.connectionStatus.hasPrefix("已连接") ? Color.green : Color.secondary)
             }
 
             if calendarSync.isAuthorized {
                 HStack(spacing: 6) {
                     if calendarSync.calendars.isEmpty {
-                        Text("没有找到可编辑的日历")
+                        Text("没有找到可访问的日历")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -249,6 +252,7 @@ private struct CalendarSyncPanel: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .disabled(calendarSync.isWorking || !calendarSync.hasSelectedCalendar)
 
                     Button {
                         Task { await calendarSync.exportToCalendar(from: store) }
@@ -258,8 +262,8 @@ private struct CalendarSyncPanel: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+                    .disabled(calendarSync.isWorking || !calendarSync.canWriteToSelectedCalendar)
                 }
-                .disabled(calendarSync.isWorking || calendarSync.calendars.isEmpty)
             } else {
                 HStack(spacing: 8) {
                     Text(calendarSync.authorizationDescription)
@@ -323,30 +327,30 @@ struct ReminderSyncPanel: View {
             HStack(spacing: 5) {
                 Image(systemName: "checklist")
                     .foregroundStyle(Color.purple)
-                Text("Mac 提醒事项同步")
+                Text("Mac 事项同步")
                     .font(.caption.weight(.semibold))
                 Spacer(minLength: 4)
-                Text(reminderSync.isAuthorized ? "已连接" : "未连接")
+                Text(reminderSync.connectionStatus)
                     .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(reminderSync.isAuthorized ? Color.green : Color.secondary)
+                    .foregroundStyle(reminderSync.connectionStatus.hasPrefix("已连接") ? Color.green : Color.secondary)
             }
 
             if reminderSync.isAuthorized {
                 HStack(spacing: 6) {
                     if reminderSync.lists.isEmpty {
-                        Text("没有找到可编辑的提醒事项列表")
+                        Text("没有找到可访问的事项列表")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
-                        Picker("互传提醒事项", selection: $reminderSync.selectedListID) {
+                        Picker("互传事项", selection: $reminderSync.selectedListID) {
                             ForEach(reminderSync.lists) { list in
                                 Text(list.displayName).tag(list.id)
                             }
                         }
                         .labelsHidden()
                         .frame(maxWidth: .infinity)
-                        .accessibilityLabel("选择互传提醒事项列表")
+                        .accessibilityLabel("选择互传事项列表")
                     }
 
                     Button {
@@ -358,7 +362,7 @@ struct ReminderSyncPanel: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                     .help("创建或选择“\(reminderSync.reminderListName)”")
-                    .accessibilityLabel("创建或使用专用提醒事项列表")
+                    .accessibilityLabel("创建或使用专用事项列表")
                     .disabled(reminderSync.isWorking)
                 }
 
@@ -366,22 +370,23 @@ struct ReminderSyncPanel: View {
                     Button {
                         Task { await reminderSync.importFromReminders(into: store) }
                     } label: {
-                        Label("导入提醒事项", systemImage: "arrow.down.to.line")
+                        Label("导入事项", systemImage: "arrow.down.to.line")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .disabled(reminderSync.isWorking || !reminderSync.hasSelectedList)
 
                     Button {
                         Task { await reminderSync.syncToReminders(from: store) }
                     } label: {
-                        Label("同步到提醒事项", systemImage: "arrow.triangle.2.circlepath")
+                        Label("同步到事项", systemImage: "arrow.triangle.2.circlepath")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+                    .disabled(reminderSync.isWorking || !reminderSync.canWriteToSelectedList)
                 }
-                .disabled(reminderSync.isWorking || reminderSync.lists.isEmpty)
             } else {
                 HStack(spacing: 8) {
                     Text(reminderSync.authorizationDescription)
@@ -416,7 +421,7 @@ struct ReminderSyncPanel: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text("删除项会随同步从提醒事项移除")
+                Text("删除项会随同步从 Mac 事项移除")
                     .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)

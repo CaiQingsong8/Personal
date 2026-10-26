@@ -18,6 +18,9 @@ struct DeskFlowSelfTest {
 
         store.addTask(title: "验证本地保存", dueDate: Date())
         guard var task = store.tasks.first else { fatalError("task creation failed") }
+        store.addTask(title: "验证连续任务", dueDate: task.dueDate.startOfDay)
+        guard let chainedTask = store.tasks.last else { fatalError("second task creation failed") }
+        precondition(chainedTask.dueDate == task.dueDate.addingTimeInterval(TaskScheduleDefaults.durationSeconds))
         task.notes = "JSON + CSV"
         task.hasSpecificTime = true
         task.dueDate = Calendar.current.date(bySettingHour: 9, minute: 30, second: 0, of: task.dueDate) ?? task.dueDate
@@ -41,7 +44,7 @@ struct DeskFlowSelfTest {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let persisted = try decoder.decode(PersistedData.self, from: data)
-        precondition(persisted.tasks.count == 1)
+        precondition(persisted.tasks.count == 2)
         precondition(persisted.focusRecords.count == 1)
 
         print("SELF_TEST_OK tasks=\(persisted.tasks.count) focusRecords=\(persisted.focusRecords.count) data=\(store.dataFile.path)")

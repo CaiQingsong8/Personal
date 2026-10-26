@@ -181,7 +181,8 @@ final class AppStore: ObservableObject {
                     taskID: schedule.id,
                     eventIdentifier: schedule.calendarEventIdentifier,
                     externalIdentifier: schedule.calendarEventExternalIdentifier,
-                    calendarIdentifier: schedule.calendarIdentifier
+                    calendarIdentifier: schedule.calendarIdentifier,
+                    kind: .schedule
                 ))
             }
         }
@@ -191,6 +192,11 @@ final class AppStore: ObservableObject {
 
     func applyCalendarSchedules(_ schedules: [CalendarSchedule]) {
         calendarSchedules = schedules
+        save()
+    }
+
+    func applyTasks(_ tasks: [TodoItem]) {
+        self.tasks = tasks
         save()
     }
 
@@ -208,6 +214,18 @@ final class AppStore: ObservableObject {
 
     func deleteTasks(ids: Set<UUID>) {
         guard !ids.isEmpty else { return }
+        for task in tasks where ids.contains(task.id) {
+            if task.calendarEventIdentifier != nil || task.calendarEventExternalIdentifier != nil || task.calendarIdentifier != nil,
+               !pendingCalendarDeletions.contains(where: { $0.taskID == task.id }) {
+                pendingCalendarDeletions.append(PendingCalendarDeletion(
+                    taskID: task.id,
+                    eventIdentifier: task.calendarEventIdentifier,
+                    externalIdentifier: task.calendarEventExternalIdentifier,
+                    calendarIdentifier: task.calendarIdentifier,
+                    kind: .task
+                ))
+            }
+        }
         tasks.removeAll { ids.contains($0.id) }
         if let timerTaskID, ids.contains(timerTaskID) { self.timerTaskID = nil }
         save()

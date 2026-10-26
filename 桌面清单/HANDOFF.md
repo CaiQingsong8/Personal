@@ -1,51 +1,54 @@
 # 桌面清单项目交接
 
-> 最后更新：2026-10-26 15:36 CST
-> 交接状态：1.6.1 build 18 已安装并由当前会话启动、请求切至前台；main/功能分支与 v1.6.1 标签已推送；GitHub Release 资产上传待完成
+> 最后更新：2026-10-26 16:26 CST
+> 交接状态：1.6.2（build 19）已构建、安装至 `/Applications/桌面清单.app` 并启动；当前功能待提交推送，GitHub Release 尚未创建。
 
 ## 仓库定位
 
 - 代码仓库：`CaiQingsong8/Personal`
 - 代码分支：`codex/deskflow-calendar-sync`
-- 本轮功能提交：`47f546a`（`feat: clarify task and calendar controls`）
-- 本轮交接提交：`a638d2f`（`docs: record DeskFlow 1.6.1 handoff`）
-- GitHub 标签：`v1.6.1` 已推送，指向 `a638d2f`；旧 `v1.6.0` 保留
-- 推送后核验提交：`99c3d17`；该次 `git ls-remote` 回显 main 与功能分支均指向此提交
-- 项目目录：`DeskFlow-dev/桌面清单`
-- 当前版本：1.6.1（build 18），最低 macOS 13.0，Universal 2
+- 当前基线提交：`53746a6`（`docs: record DeskFlow app relaunch verification`）
+- 本轮功能提交：待提交
+- 本轮交接提交：待提交
+- 当前版本：1.6.2（build 19），最低 macOS 13.0，Universal 2
+- 当前版本包：`build/DeskFlow-1.6.2-macOS13-Universal.zip`
+- SHA-256：`1dd763b14ae2c1ef39b3ef9b5ef962376c18dd945b5c5988cef2d7b98d7d62ad`
 
-## 本轮完成
+## 1.6.2 本轮变更
 
-- [x] “今日”内容分成“任务”和“事项”两个入口，各有独立的新建输入和“添加”按钮；本地任务不会同步到 Mac 日历或 Mac 事项。
-- [x] 新建同一天的任务时，第一项按当前整点/半点规则起排，后续任务从当日最近一项有具体时间的任务结束时刻继续；默认时长仍为 2 小时。
-- [x] 月历底部按“任务、事项、专注”显示三个控制。任务开关控制本地任务与普通 Mac 日历日程；节假日和节气始终显示。事项开关只控制事项图层。
-- [x] 保留互相独立的日历日程和 Mac 事项同步面板。Mac 日历日程从 Mac 导入、在 DeskFlow 修改后回写原事件；Mac 事项仅与本地事项数据互传。
-- [x] 授权状态在应用重新激活时刷新；分别呈现未连接、已授权、已连接、只读状态。可读取的只读日历/事项列表允许导入，写回操作只对可编辑目标开放。
-- [x] 保持 macOS 13 的 EventKit 授权分支，macOS 14 及以上使用完整访问 API。
-- [x] 1.6.1 / build 18 已安装到 `/Applications/桌面清单.app`，覆盖旧应用包；没有触碰 `~/Library/Application Support/DeskFlow`。
-- [x] 1.6.1 Universal ZIP：`build/DeskFlow-1.6.1-macOS13-Universal.zip`；SHA-256：`f1ecd1f9f723aebabf810aa134388a6ff4b3ff73ce8cc2915b9f893827a48f42`。本地 1.6.0 ZIP 已移除。
+- [x] “今日”页显示“今日内容”标题，并按截图将内容切换为“任务 / 事项”。
+- [x] “今日 → 任务”加入 Mac 日历同步：用户选择可编辑日历后手动同步；按任务 UUID、EventKit 事件 ID 和外部 ID 更新原事件，避免重复新增；删除任务会进入独立任务删除队列，下次任务同步时从日历删除。
+- [x] 任务使用独立事件标记，日历日程导入时排除这些任务事件，月历也不重复显示任务副本；从 Mac 导入的日程仍保存在 `calendarSchedules`，由原日程面板管理并回写。
+- [x] 任务删除和日程删除在同一队列中用 `kind` 分开处理；旧版缺少 `kind` 的记录继续按日程删除处理。
+- [x] Mac 提醒事项同步面板只保留在“今日 → 事项”，从月历底部移除重复面板。事项只与所选 Mac 提醒事项列表互传，不同步到 Mac 日历。
+- [x] 提醒事项列表动态读取 EventKit 中的真实列表，显示列表颜色；按日历 ID 保持选择，重新授权、切换列表或系统列表变化后刷新。
+- [x] 月历与统计视图保持原状；节日和节气继续常显，任务、事项和专注仍可独立显示/隐藏。
+- [x] 更新 macOS 日历权限说明、README 和使用说明，明确任务到日历、事项到提醒事项、日程导入回写三条独立路径。
 
 ## 验证状态
 
-- [x] `CalendarSemanticsTests` 通过（`CALENDAR_SEMANTICS_TESTS_OK`），包含首个任务起排与后续任务接续时刻断言。
-- [x] `SelfTest.swift` 在全新 `/private/tmp` 数据目录通过（`SELF_TEST_OK tasks=2 reminders=1 focusRecords=1`），验证新增第二个任务接续首项结束时刻，新增事项独立进入事项数组且未改变任务数；未访问真实数据目录。
-- [x] `桌面清单/build.sh` 成功编译 x86_64 与 arm64；包内最低系统版本 13.0；`codesign --verify --deep --strict` 通过。
-- [x] 已安装包核对为 1.6.1 / build 18，架构为 x86_64 + arm64。
-- [x] ZIP 完整性检查通过。`iconutil` 报 `Invalid Iconset`，构建脚本使用已有 App 图标回退并成功签名。
-- [x] 2026-10-26 15:36 CST：确认此前 PID 14111 是仍驻留的旧进程；退出后在沙盒外通过 LaunchServices 执行 `open -na`，并通过 AppleScript 请求激活。新 PID 20190 的可执行映像由 `lsof` 确认为 `/Applications/桌面清单.app/Contents/MacOS/DeskFlow`，安装包 Info.plist 为 1.6.1 / build 18。此前“启动成功”实际只验证到旧进程；当前已确认新版进程运行并收到前台激活请求，但本会话没有屏幕采集能力，未取得窗口截图或交互证据。
-- [ ] 未在用户的 iCloud/EventKit 账户上实测首次授权、日程写回、事项互传及删除传播。
+- [x] `SelfTest.swift` 在全新 `/private/tmp/DeskFlow-SelfTest-data-final` 数据目录通过（`SELF_TEST_OK tasks=2 reminders=1 focusRecords=1`）；验证任务 EventKit ID 往返保存、任务删除队列分类为 `.task`、旧版删除记录无 `kind` 时仍可解码，且事项数据未混入任务的日历 ID。
+- [x] `./build.sh` 成功构建 x86_64 与 arm64 Universal 应用。
+- [x] 包内版本为 1.6.2 / build 19；`codesign --verify --deep --strict` 通过，架构为 x86_64 + arm64，编译目标最低 macOS 13.0。
+- [x] ZIP 完整性检查通过。`iconutil` 报 `Invalid Iconset`，构建脚本回退使用已有图标并完成本地签名。
+- [x] 旧版 `build/DeskFlow-1.6.1-macOS13-Universal.zip` 已删除；当前构建目录仅保留 1.6.2 ZIP。Git 历史和旧标签保留。
+- [x] `/Applications/桌面清单.app` 已替换为 1.6.2 / build 19。2026-10-26 16:20 CST 通过 LaunchServices 启动；`lsof` 确认 PID 29323 的可执行文件来自 `/Applications/桌面清单.app/Contents/MacOS/DeskFlow`。
+- [ ] 本会话没有屏幕采集能力，未取得窗口截图或真实点击证据。
+- [ ] 未在用户 iCloud/EventKit 账户上实测任务写入、事项互传、日程回写及删除传播。
 - [ ] 未在配偶的 macOS 13 电脑上实机安装验证。
 
 ## Git 与发行
 
-- `main`、`codex/deskflow-calendar-sync` 与标签 `v1.6.1` 均已推送；推送后核验提交为 `99c3d17`，标签对象存在。
-- GitHub API 确认 `v1.6.1` 下的 Info.plist 为 1.6.1 / build 18；GitHub 比较显示 main 比旧基线多 2 个提交。
-- 1.6.1 GitHub Release 页面与 ZIP 附件尚未完成。当前主机 `gh auth status` 只报告本地 CLI 凭据无效；Chrome 发布页已打开，但 CUA 连续超时，未能操作上传表单。此 CLI 状态不代表用户的 GitHub 网页会话未登录。
-- 本机 HTTPS `git ls-remote` 返回 `Empty reply from server`，后续 SSH 推送成功；不将这次 HTTPS 响应解释为账号权限问题。
-- 保留既有 Git 提交与 `v1.6.0` 标签，不覆盖旧时间线。
+- [ ] 1.6.2 功能与交接尚未提交、推送或打标签。
+- [ ] 需先检查远端当前分支，再推送 `codex/deskflow-calendar-sync` 并验证 `git ls-remote`。
+- [ ] 本地 `main` 当前比 `origin/main` ahead 1 / behind 25；不要直接推送或合并，先厘清分叉历史。当前功能工作只在 `codex/deskflow-calendar-sync`。
+- [ ] `v1.6.2` 标签和 GitHub Release 尚未创建。
+- [x] 保留 `v1.6.0`、`v1.6.1` 标签和对应 Git 时间线；不删除历史源码或提交。
+- [x] 1.6.1 既有交付记录：标签 `v1.6.1` 已推送，旧 ZIP 当时 SHA-256 为 `f1ecd1f9f723aebabf810aa134388a6ff4b3ff73ce8cc2915b9f893827a48f42`；GitHub Release 与附件当时尚未完成。该版本记录保留在 Git 历史，旧 ZIP 已从本地构建目录清理。
+- [x] 1.6.1 功能提交历史保留：`47f546a`（`feat: clarify task and calendar controls`）、`a638d2f`（`docs: record DeskFlow 1.6.1 handoff`）；后续远端核验提交曾为 `99c3d17`。本轮不覆盖这些提交或标签。
 
 ## 注意事项
 
-- 真实数据仅在 `~/Library/Application Support/DeskFlow`；升级、重装和清理构建产物均不得删除该目录。
-- 日历日程和事项继续使用不同模型、标识、删除队列和同步服务；不得把本地任务复制进任一远端数据域。
-- macOS 13 兼容路径为 `requestAccess(to:)`；新 API 必须保留 `#available(macOS 14.0, *)` 守卫。
+- 真实数据仅位于 `~/Library/Application Support/DeskFlow`；升级、重装和清理构建产物均不得删除该目录。
+- 三类内容保持明确边界：Mac 日历日程导入后修改并回写；本地任务由用户主动推送到 Mac 日历；事项与 Mac 提醒事项列表双向同步。任务与事项不得互传，也不得复制成彼此的事件。
+- macOS 13 兼容路径为 `requestAccess(to:)`；新 API 必须使用 `#available(macOS 14.0, *)` 守卫。

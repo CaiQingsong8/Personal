@@ -1,3 +1,4 @@
+import EventKit
 import SwiftUI
 
 struct TaskListView: View {
@@ -33,11 +34,20 @@ struct TaskListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("今日内容", selection: $todaySection) {
-                Text("任务").tag(TodaySection.tasks)
-                Text("事项").tag(TodaySection.reminders)
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                Text("今日内容")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Picker("今日内容", selection: $todaySection) {
+                    Text("任务").tag(TodaySection.tasks)
+                    Text("事项").tag(TodaySection.reminders)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                Spacer(minLength: 0)
             }
-            .pickerStyle(.segmented)
             .padding(.horizontal, 14)
             .padding(.top, 8)
 
@@ -104,6 +114,10 @@ struct TaskListView: View {
             }
 
             Divider().opacity(0.6)
+            if todaySection == .tasks {
+                TaskCalendarSyncPanel()
+                    .padding(.horizontal, 10)
+            }
             if todaySection == .reminders || !isSelecting { FocusTimerView() }
         }
         .sheet(item: $editingTask) { task in
@@ -303,7 +317,119 @@ private enum TodaySection: Hashable {
     case reminders
 }
 
+private struct TaskCalendarSyncPanel: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var calendarSync: CalendarSyncService
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                Image(systemName: "calendar.badge.arrowtriangle.2.circlepath")
+                    .foregroundStyle(Color.accentColor)
+                Text("Mac 日历任务同步")
+                    .font(.caption.weight(.semibold))
+                Spacer(minLength: 4)
+                Text(calendarSync.connectionStatus)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(calendarSync.connectionStatus.hasPrefix("已连接") ? Color.green : Color.secondary)
+            }
+
+            if calendarSync.isAuthorized {
+                HStack(spacing: 6) {
+                    if calendarSync.calendars.isEmpty {
+                        Text("没有找到可访问的日历")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Picker("任务同步日历", selection: $calendarSync.selectedCalendarID) {
+                            ForEach(calendarSync.calendars) { calendar in
+                                Text(calendar.displayName).tag(calendar.id)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityLabel("选择任务同步日历")
+                    }
+                    Button {
+                        calendarSync.createOrUseScheduleCalendar()
+                    } label: {
+                        Image(systemName: "calendar.badge.plus")
+                            .frame(width: 25, height: 25)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("创建或选择“\(calendarSync.scheduleCalendarName)”")
+                    .disabled(calendarSync.isWorking)
+                }
+
+                Button {
+                    Task { await calendarSync.syncTasksToCalendar(from: store) }
+                } label: {
+                    Label("同步任务到日历", systemImage: "arrow.triangle.2.circlepath")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(calendarSync.isWorking || !calendarSync.canWriteToSelectedCalendar)
+            } else {
+                HStack(spacing: 8) {
+                    Text(calendarSync.authorizationDescription)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                    Spacer(minLength: 0)
+                    if calendarSync.authorizationStatus == .denied || calendarSync.authorizationStatus == .restricted {
+                        Button("打开权限设置") { calendarSync.openPrivacySettings() }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                    } else {
+                        Button("允许访问") {
+                            Task {
+                                await calendarSync.requestAccess()
+                                if calendarSync.isAuthorized {
+                                    calendarSync.loadMonthEvents(containing: store.displayedMonth, appStore: store)
+                                }
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(calendarSync.isWorking)
+                    }
+                }
+            }
+
+            HStack(spacing: 5) {
+                if calendarSync.isWorking { ProgressView().controlSize(.mini) }
+                Text(calendarSync.statusMessage)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("仅同步任务；Mac 事项保持独立")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
+        .background(Color.primary.opacity(0.035))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .onAppear { calendarSync.refreshCalendars() }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { calendarSync.refreshAuthorizationStatus() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
+            calendarSync.refreshCalendars()
+        }
+    }
+}
+
 private struct ReminderTodayView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var reminderSync: ReminderSyncService
     @State private var newTitle = ""
@@ -386,6 +512,29 @@ private struct ReminderTodayView: View {
         }
         .sheet(item: $editingItem) { item in
             ReminderItemEditorView(item: item)
+        }
+        .onAppear {
+            reminderSync.refreshAuthorizationStatus()
+            if reminderSync.isAuthorized {
+                reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)
+            }
+        }
+        .onChange(of: reminderSync.selectedListID) { _ in
+            reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)
+        }
+        .onChange(of: store.selectedDate) { date in
+            reminderSync.loadMonthReminders(containing: date, appStore: store)
+        }
+        .onChange(of: scenePhase) { phase in
+            guard phase == .active else { return }
+            reminderSync.refreshAuthorizationStatus()
+            if reminderSync.isAuthorized {
+                reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
+            reminderSync.refreshLists()
+            reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)
         }
     }
 

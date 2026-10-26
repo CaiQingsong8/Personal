@@ -7,6 +7,7 @@ struct ReminderListChoice: Identifiable, Hashable {
     let title: String
     let sourceTitle: String
     let allowsContentModifications: Bool
+    let colorHex: UInt32
 
     var displayName: String { "\(title) · \(sourceTitle)\(allowsContentModifications ? "" : " · 只读")" }
 }
@@ -165,7 +166,8 @@ final class ReminderSyncService: ObservableObject {
                     id: $0.calendarIdentifier,
                     title: $0.title,
                     sourceTitle: $0.source.title,
-                    allowsContentModifications: $0.allowsContentModifications
+                    allowsContentModifications: $0.allowsContentModifications,
+                    colorHex: Self.colorHex(for: $0.color)
                 )
             }
             .sorted {
@@ -181,6 +183,14 @@ final class ReminderSyncService: ObservableObject {
                 ?? lists.first?.id
                 ?? ""
         }
+    }
+
+    private static func colorHex(for color: NSColor?) -> UInt32 {
+        guard let color, let rgb = color.usingColorSpace(.deviceRGB) else { return 0x1683FF }
+        let red = UInt32((rgb.redComponent * 255).rounded())
+        let green = UInt32((rgb.greenComponent * 255).rounded())
+        let blue = UInt32((rgb.blueComponent * 255).rounded())
+        return (red << 16) | (green << 8) | blue
     }
 
     func reminders(on date: Date) -> [CalendarDayReminder] {
@@ -241,6 +251,7 @@ final class ReminderSyncService: ObservableObject {
         guard !isWorking else { return }
         isWorking = true
         defer { isWorking = false }
+        refreshLists()
 
         if let existing = eventStore.calendars(for: .reminder).first(where: {
             $0.allowsContentModifications && $0.title == Self.reminderListName

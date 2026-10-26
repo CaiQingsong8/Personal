@@ -11,6 +11,10 @@ struct TodoItem: Identifiable, Codable, Hashable {
     // Optional fields keep older local JSON backups fully compatible.
     var hasSpecificTime: Bool?
     var calendarDurationSeconds: Double?
+    var calendarEventIdentifier: String?
+    var calendarEventExternalIdentifier: String?
+    var calendarIdentifier: String?
+    var calendarSyncedAt: Date?
     var localUpdatedAt: Date?
 }
 
@@ -199,11 +203,18 @@ enum CalendarEventIdentityMatcher {
     }
 }
 
+enum CalendarLinkedRecordKind: String, Codable {
+    case schedule
+    case task
+}
+
 struct PendingCalendarDeletion: Codable, Hashable {
     var taskID: UUID
     var eventIdentifier: String?
     var externalIdentifier: String?
     var calendarIdentifier: String?
+    // Missing means a pre-1.6.2 calendar-schedule deletion.
+    var kind: CalendarLinkedRecordKind? = nil
 }
 
 struct ReminderItemIdentity: Hashable {
@@ -364,7 +375,10 @@ struct PersistedData: Codable {
             }
             didMigrateLegacyRecords = true
         } else {
-            tasks = oldTasks.filter { !$0.hasCalendarIdentity && !$0.hasReminderIdentity }.map { $0.localTask() }
+            // Version 2 stores local tasks separately from imported calendar schedules
+            // and reminders. Decode TodoItem directly so its optional calendar link
+            // survives round trips without migrating it into either other data set.
+            tasks = try values.decodeIfPresent([TodoItem].self, forKey: .tasks) ?? []
             didMigrateLegacyRecords = false
         }
         schemaVersion = 2

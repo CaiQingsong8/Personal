@@ -19,9 +19,9 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.6.1</string>
+    <string>1.6.2</string>
     <key>CFBundleVersion</key>
-    <string>18</string>
+    <string>19</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.productivity</string>
     <key>LSMinimumSystemVersion</key>
@@ -31,9 +31,9 @@
     <key>NSHumanReadableCopyright</key>
     <string>Local-first personal productivity tool.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
-    <string>用于在你主动操作时，导入、编辑并同步 Mac 日历日程。清单任务不会写入 Mac 日历。</string>
+    <string>用于在你主动操作时，将清单任务同步至所选 Mac 日历，并导入、编辑和回写日历日程。Mac 提醒事项保持独立。</string>
     <key>NSCalendarsUsageDescription</key>
-    <string>用于在你主动操作时，导入、编辑并同步 Mac 日历日程。清单任务不会写入 Mac 日历。</string>
+    <string>用于在你主动操作时，将清单任务同步至所选 Mac 日历，并导入、编辑和回写日历日程。Mac 提醒事项保持独立。</string>
     <key>NSRemindersFullAccessUsageDescription</key>
     <string>用于在你主动操作时，将独立的提醒事项与所选 Mac 提醒事项列表互传。清单任务不会写入提醒事项。</string>
     <key>NSRemindersUsageDescription</key>

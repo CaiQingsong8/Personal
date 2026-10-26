@@ -67,8 +67,6 @@ struct MonthView: View {
             CalendarSyncPanel()
                 .padding(.horizontal, 10)
 
-            ReminderSyncPanel()
-                .padding(.horizontal, 10)
         }
         .padding(.top, 10)
         .padding(.bottom, 8)
@@ -345,10 +343,17 @@ struct ReminderSyncPanel: View {
                     } else {
                         Picker("互传事项", selection: $reminderSync.selectedListID) {
                             ForEach(reminderSync.lists) { list in
-                                Text(list.displayName).tag(list.id)
+                                HStack(spacing: 7) {
+                                    Circle()
+                                        .fill(Self.listColor(list.colorHex))
+                                        .frame(width: 8, height: 8)
+                                    Text(list.displayName)
+                                }
+                                .tag(list.id)
                             }
                         }
                         .labelsHidden()
+                        .pickerStyle(.menu)
                         .frame(maxWidth: .infinity)
                         .accessibilityLabel("选择互传事项列表")
                     }
@@ -431,6 +436,14 @@ struct ReminderSyncPanel: View {
         .padding(.vertical, 7)
         .background(Color.primary.opacity(0.035))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private static func listColor(_ hex: UInt32) -> Color {
+        Color(
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255
+        )
     }
 }
 

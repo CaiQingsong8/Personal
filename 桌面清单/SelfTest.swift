@@ -11,6 +11,11 @@ struct DeskFlowSelfTest {
         legacyDecoder.dateDecodingStrategy = .iso8601
         let legacyTask = try legacyDecoder.decode(TodoItem.self, from: Data(legacyJSON.utf8))
         precondition(legacyTask.hasSpecificTime == nil)
+        let legacyDeletionJSON = """
+        {"taskID":"00000000-0000-0000-0000-000000000002","eventIdentifier":"legacy-calendar-event"}
+        """
+        let legacyDeletion = try legacyDecoder.decode(PendingCalendarDeletion.self, from: Data(legacyDeletionJSON.utf8))
+        precondition(legacyDeletion.kind == nil)
 
         let store = AppStore.shared
         precondition(store.tasks.isEmpty)
@@ -26,6 +31,10 @@ struct DeskFlowSelfTest {
         precondition(store.tasks.count == 2)
         task.notes = "JSON + CSV"
         task.hasSpecificTime = true
+        task.calendarEventIdentifier = "self-test-event-id"
+        task.calendarEventExternalIdentifier = "self-test-external-id"
+        task.calendarIdentifier = "self-test-calendar-id"
+        task.calendarSyncedAt = Date()
         task.dueDate = Calendar.current.date(bySettingHour: 9, minute: 30, second: 0, of: task.dueDate) ?? task.dueDate
         store.updateTask(task)
         store.toggleTask(task)
@@ -34,6 +43,7 @@ struct DeskFlowSelfTest {
         precondition(updated.isCompleted)
         precondition(updated.notes == "JSON + CSV")
         precondition(updated.hasSpecificTime == true)
+        precondition(updated.calendarEventIdentifier == "self-test-event-id")
 
         store.selectTaskForTimer(updated)
         store.sessionLength = 61
@@ -50,6 +60,14 @@ struct DeskFlowSelfTest {
         precondition(persisted.tasks.count == 2)
         precondition(persisted.reminderItems.count == 1)
         precondition(persisted.focusRecords.count == 1)
+        precondition(persisted.tasks.first(where: { $0.id == updated.id })?.calendarEventIdentifier == "self-test-event-id")
+        precondition(persisted.reminderItems.first?.reminderCalendarItemIdentifier == nil)
+
+        store.deleteTask(updated)
+        precondition(store.pendingCalendarDeletions.first(where: { $0.taskID == updated.id })?.kind == .task)
+        let postDeleteData = try Data(contentsOf: store.dataFile)
+        let postDeletePersisted = try decoder.decode(PersistedData.self, from: postDeleteData)
+        precondition(postDeletePersisted.pendingCalendarDeletions.first(where: { $0.taskID == updated.id })?.kind == .task)
 
         print("SELF_TEST_OK tasks=\(persisted.tasks.count) reminders=\(persisted.reminderItems.count) focusRecords=\(persisted.focusRecords.count) data=\(store.dataFile.path)")
     }

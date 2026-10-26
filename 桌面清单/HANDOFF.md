@@ -1,18 +1,18 @@
 # 桌面清单项目交接
 
-> 最后更新：2026-10-26 16:49 CST
-> 交接状态：1.6.3（build 20）已构建、安装至 `/Applications/桌面清单.app` 并启动；自测与静态检查通过，代码提交 `6361ccb` 已创建，交接提交、远端推送、标签和 GitHub Release 待完成。
+> 最后更新：2026-10-26 17:06 CST
+> 交接状态：1.6.3（build 21）已构建、安装至 `/Applications/桌面清单.app` 并启动；自测与静态检查通过，功能提交 `6361ccb`、`c3e51ac` 已创建；交接提交、远端推送、标签和 GitHub Release 待完成。
 
 ## 仓库定位
 
 - 代码仓库：`CaiQingsong8/Personal`
 - 代码分支：`codex/deskflow-calendar-sync`
 - 当前基线提交：`7a4b536`（`docs: update DeskFlow 1.6.2 handoff`）
-- 本轮功能提交：`6361ccb`（`fix: show local reminders and move calendar sync`）
+- 本轮功能提交：`6361ccb`（`fix: show local reminders and move calendar sync`）、`c3e51ac`（`fix: distinguish calendar schedule and task sync`）
 - 本轮交接提交：本文件所在提交（以 `git log -1` 为准）
-- 当前版本：1.6.3（build 20），最低 macOS 13.0，Universal 2
+- 当前版本：1.6.3（build 21），最低 macOS 13.0，Universal 2
 - 当前版本包：`build/DeskFlow-1.6.3-macOS13-Universal.zip`
-- SHA-256：`e43c99c5825094a94e8494dfa4e07383c5f9194e832a6f797aeecc226a0165d9`
+- SHA-256：`a16cc680ad17235daaefe9db2f102031a222b482f5533eb9e7a02fd93732c3f3`
 
 ## 1.6.3 修正
 
@@ -21,6 +21,8 @@
 - [x] 月历页移除日历同步面板；日程导入/回写和任务到日历同步集中在“今日 → 任务”，共享所选日历但仍是独立操作。
 - [x] 提醒事项授权请求前激活应用；授权未返回时提供系统设置检查指引；未连接状态不再重复显示相同权限提示。
 - [x] 保留 macOS 13 的 `requestAccess(to: .reminder)` 兼容分支；macOS 14+ 继续使用完整访问 API，并由 `#available` 守卫。
+- [x] 明确两个日历操作的方向和对象：日程面板负责导入/回写 Mac 日程；任务面板负责把 DeskFlow 清单任务写入 Mac 日历。分别显示进行中和同步结果，避免任务状态覆盖日程状态。
+- [x] 日程按钮命名为“回写日程”，任务面板命名为“Mac 日历清单任务同步”，按钮命名为“同步清单任务到日历”。
 
 ## 1.6.2 本轮变更
 
@@ -35,12 +37,12 @@
 
 ## 验证状态
 
-- [x] `SelfTest.swift` 在全新 `/private/tmp/DeskFlow-SelfTest-data-1.6.3` 数据目录通过（`SELF_TEST_OK tasks=2 reminders=1 focusRecords=1`）。
+- [x] `SelfTest.swift` 在全新 `/private/tmp/DeskFlow-SelfTest-data-1.6.3-final` 数据目录通过（`SELF_TEST_OK tasks=2 reminders=1 focusRecords=1`）。
 - [x] `./build.sh` 成功构建 macOS 13.0 目标的 x86_64 与 arm64 Universal 应用；`plutil -lint`、代码签名和架构检查通过。
-- [x] 包内版本为 1.6.3 / build 20；Universal ZIP 完整性检查通过，SHA-256 已记录。
+- [x] 包内版本为 1.6.3 / build 21；Universal ZIP 完整性检查通过，SHA-256 已记录。
 - [x] `iconutil` 报 `Invalid Iconset`，构建脚本回退使用已有图标并完成本地签名。
 - [x] 旧版 `build/DeskFlow-1.6.2-macOS13-Universal.zip` 已删除；当前构建目录仅保留 1.6.3 ZIP。Git 历史和旧标签保留。
-- [x] `/Applications/桌面清单.app` 已替换为 1.6.3 / build 20 并启动；2026-10-26 16:49 CST `lsof` 确认 PID 33629 的可执行文件来自 `/Applications/桌面清单.app/Contents/MacOS/DeskFlow`。
+- [x] `/Applications/桌面清单.app` 已替换为 1.6.3 / build 21 并启动；安装后 `lsof` 确认可执行文件来自 `/Applications/桌面清单.app/Contents/MacOS/DeskFlow`。
 - [ ] 未在用户 iCloud/EventKit 账户上实测授权弹窗、事项互传、日程回写及删除传播。
 - [ ] 未在配偶的 macOS 13 电脑上实机安装验证；当前只完成 macOS 13 deployment target 编译。
 

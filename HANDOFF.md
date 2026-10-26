@@ -1,12 +1,15 @@
 # 桌面清单项目交接
 
-> 最后更新：2026-10-26 14:40 CST
-> 交接状态：1.6.1 build 18 已安装；功能提交 `47f546a` 尚未推送；图形界面与真实 EventKit 账户验证待完成
+> 最后更新：2026-10-26 14:45 CST
+> 交接状态：1.6.1 build 18 已安装并推送；v1.6.1 标签已建立；GitHub Release 附件、图形界面与真实 EventKit 验证待完成
 
 ## 仓库定位
 
 - 代码仓库：`CaiQingsong8/Personal`
 - 分支：`codex/deskflow-calendar-sync`
+- 功能提交：`47f546a`
+- 交接提交 / 当前远端分支 SHA：`a638d2fa7c06d7ed7fcc1a98d39db306ba8719e4`
+- 标签：`v1.6.1`（已推送）
 - 项目目录：`DeskFlow-dev/桌面清单`
 - 版本：1.6.1（build 18），最低 macOS 13.0，Universal 2
 - 详细交接：[`桌面清单/HANDOFF.md`](桌面清单/HANDOFF.md)
@@ -22,17 +25,16 @@
 
 ## 未完成与限制
 
-- 本地功能提交 `47f546a` 已创建；GitHub API 确认远端 `main` 与功能分支仍在 `9f06281`。本机 HTTPS `git ls-remote` 返回 `Empty reply from server`，尚未推送。
-- `v1.6.1` 标签和 GitHub Release 尚未创建；`v1.6.0` 历史标签保留。
+- GitHub `main` 与功能分支已推送至 `a638d2f`，远端核对通过；`v1.6.1` 标签已推送，`v1.6.0` 历史标签保留。
+- GitHub Release 和 ZIP 附件仍未创建。当前主机的 GitHub CLI 凭据无效，Chrome 发布页自动化连续超时；这不代表用户网页会话未登录。
 - 提升权限启动命令返回成功，但当前环境的 System Events 复查返回 `-10827`；尚不能确认 GUI 窗口已显示并可交互。
 - 用户 iCloud/EventKit 真实同步与配偶 macOS 13 电脑实测待完成。
 
 ## 下一步
 
-1. 更新并提交这两个 HANDOFF 文件，确认分支状态。
-2. 通过可用 GitHub 路径推送 `47f546a` 及交接文档，核验 `main` 和功能分支远端 SHA。
-3. 创建不覆盖既有历史的 `v1.6.1` 标签；验证 GitHub Release 页面及通用 ZIP 附件。
-4. 在用户图形会话确认应用窗口、授权状态与同步列表。
+1. 使用可用的 GitHub Release 会话上传 `DeskFlow-1.6.1-macOS13-Universal.zip`，核对资产和发布页。
+2. 在用户图形会话确认应用窗口、授权状态与同步列表。
+3. 在真实 iCloud/EventKit 账户与 macOS 13 电脑验证互传和只读列表行为。
 
 ## 重要约束
 

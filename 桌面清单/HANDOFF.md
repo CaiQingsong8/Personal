@@ -1,14 +1,16 @@
 # 桌面清单项目交接
 
-> 最后更新：2026-10-26 14:40 CST
-> 交接状态：1.6.1 build 18 已构建并安装；本地功能提交待推送；图形界面与真实 EventKit 账户验证未完成
+> 最后更新：2026-10-26 14:45 CST
+> 交接状态：1.6.1 build 18 已安装并推送 main/功能分支，v1.6.1 标签已推送；GitHub Release 资产上传与图形界面验证待完成
 
 ## 仓库定位
 
 - 代码仓库：`CaiQingsong8/Personal`
 - 代码分支：`codex/deskflow-calendar-sync`
-- 本轮功能提交：`47f546a`（`feat: clarify task and calendar controls`，本地提交）
-- GitHub `main` 与功能分支当前都在：`9f06281dfa1c94a58a76649c962ee5bb798d7e86`；GitHub API 比较结果为与本地提交前基线一致
+- 本轮功能提交：`47f546a`（`feat: clarify task and calendar controls`）
+- 本轮交接提交：`a638d2f`（`docs: record DeskFlow 1.6.1 handoff`）
+- GitHub `main`、功能分支均指向：`a638d2fa7c06d7ed7fcc1a98d39db306ba8719e4`
+- GitHub 标签：`v1.6.1` 已推送，指向 `a638d2f`；旧 `v1.6.0` 保留
 - 项目目录：`DeskFlow-dev/桌面清单`
 - 当前版本：1.6.1（build 18），最低 macOS 13.0，Universal 2
 
@@ -36,10 +38,10 @@
 
 ## Git 与发行
 
-- 当前本地 `HEAD` 为功能提交 `47f546a`；待更新本 HANDOFF 与根 HANDOFF 后再提交文档。
-- 本轮通过 GitHub API 确认 `main` 和 `codex/deskflow-calendar-sync` 仍停在 `9f06281`；`v1.6.1` 标签不存在，`v1.6.0` 标签仍指向 1.6.0。
-- `git ls-remote` 对 GitHub HTTPS 请求返回 `Empty reply from server`；尚未推送。不要把此网络响应解释为账号未登录或权限不足。
-- 1.6.1 GitHub Release 尚未创建；完成分支/主分支推送和标签后，另行验证发布页与 ZIP 附件。
+- `main`、`codex/deskflow-calendar-sync` 与标签 `v1.6.1` 均已推送；`git ls-remote` 核对两个分支 SHA 为 `a638d2fa7c06d7ed7fcc1a98d39db306ba8719e4`，标签对象存在。
+- GitHub API 确认 `v1.6.1` 下的 Info.plist 为 1.6.1 / build 18；GitHub 比较显示 main 比旧基线多 2 个提交。
+- 1.6.1 GitHub Release 页面与 ZIP 附件尚未完成。当前主机 `gh auth status` 只报告本地 CLI 凭据无效；Chrome 发布页已打开，但 CUA 连续超时，未能操作上传表单。此 CLI 状态不代表用户的 GitHub 网页会话未登录。
+- 本机 HTTPS `git ls-remote` 返回 `Empty reply from server`，后续 SSH 推送成功；不将这次 HTTPS 响应解释为账号权限问题。
 - 保留既有 Git 提交与 `v1.6.0` 标签，不覆盖旧时间线。
 
 ## 注意事项

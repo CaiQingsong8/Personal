@@ -1,7 +1,7 @@
 # 桌面清单项目交接
 
-> 最后更新：2026-10-26 14:45 CST
-> 交接状态：1.6.1 build 18 已安装并推送 main/功能分支，v1.6.1 标签已推送；GitHub Release 资产上传与图形界面验证待完成
+> 最后更新：2026-10-26 15:08 CST
+> 交接状态：1.6.1 build 18 已安装并启动，main/功能分支与 v1.6.1 标签已推送；GitHub Release 资产上传与窗口交互验证待完成
 
 ## 仓库定位
 
@@ -9,8 +9,8 @@
 - 代码分支：`codex/deskflow-calendar-sync`
 - 本轮功能提交：`47f546a`（`feat: clarify task and calendar controls`）
 - 本轮交接提交：`a638d2f`（`docs: record DeskFlow 1.6.1 handoff`）
-- GitHub `main`、功能分支均指向：`a638d2fa7c06d7ed7fcc1a98d39db306ba8719e4`
 - GitHub 标签：`v1.6.1` 已推送，指向 `a638d2f`；旧 `v1.6.0` 保留
+- 推送后核验提交：`fd5e8d8`；该次 `git ls-remote` 回显 main 与功能分支均指向此提交
 - 项目目录：`DeskFlow-dev/桌面清单`
 - 当前版本：1.6.1（build 18），最低 macOS 13.0，Universal 2
 
@@ -28,17 +28,17 @@
 ## 验证状态
 
 - [x] `CalendarSemanticsTests` 通过（`CALENDAR_SEMANTICS_TESTS_OK`），包含首个任务起排与后续任务接续时刻断言。
-- [x] `SelfTest.swift` 在全新 `/private/tmp` 数据目录通过（`SELF_TEST_OK tasks=2 focusRecords=1`），验证新增第二个任务接续首项结束时刻；未访问真实数据目录。
+- [x] `SelfTest.swift` 在全新 `/private/tmp` 数据目录通过（`SELF_TEST_OK tasks=2 reminders=1 focusRecords=1`），验证新增第二个任务接续首项结束时刻，新增事项独立进入事项数组且未改变任务数；未访问真实数据目录。
 - [x] `桌面清单/build.sh` 成功编译 x86_64 与 arm64；包内最低系统版本 13.0；`codesign --verify --deep --strict` 通过。
 - [x] 已安装包核对为 1.6.1 / build 18，架构为 x86_64 + arm64。
 - [x] ZIP 完整性检查通过。`iconutil` 报 `Invalid Iconset`，构建脚本使用已有 App 图标回退并成功签名。
-- [ ] GUI 实际操作未确认：默认沙箱中的 `open -a` 返回 `kLSNoExecutableErr`；提升权限后 `open -a` 返回成功，但 System Events 二次查询仍报 `-10827`。尚无屏幕证据确认窗口显示并可操作。
+- [ ] GUI 窗口可见与交互未确认：退出旧进程后从已核验的 1.6.1 bundle 重新启动，`open -a` 返回成功且系统服务列表存在 DeskFlow 进程；System Events 二次查询仍报 `-10827`，尚无屏幕证据确认窗口显示并可操作。
 - [ ] 未在用户的 iCloud/EventKit 账户上实测首次授权、日程写回、事项互传及删除传播。
 - [ ] 未在配偶的 macOS 13 电脑上实机安装验证。
 
 ## Git 与发行
 
-- `main`、`codex/deskflow-calendar-sync` 与标签 `v1.6.1` 均已推送；`git ls-remote` 核对两个分支 SHA 为 `a638d2fa7c06d7ed7fcc1a98d39db306ba8719e4`，标签对象存在。
+- `main`、`codex/deskflow-calendar-sync` 与标签 `v1.6.1` 均已推送；推送后核验提交为 `fd5e8d8`，标签对象存在。
 - GitHub API 确认 `v1.6.1` 下的 Info.plist 为 1.6.1 / build 18；GitHub 比较显示 main 比旧基线多 2 个提交。
 - 1.6.1 GitHub Release 页面与 ZIP 附件尚未完成。当前主机 `gh auth status` 只报告本地 CLI 凭据无效；Chrome 发布页已打开，但 CUA 连续超时，未能操作上传表单。此 CLI 状态不代表用户的 GitHub 网页会话未登录。
 - 本机 HTTPS `git ls-remote` 返回 `Empty reply from server`，后续 SSH 推送成功；不将这次 HTTPS 响应解释为账号权限问题。

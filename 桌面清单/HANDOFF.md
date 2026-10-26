@@ -1,7 +1,7 @@
 # 桌面清单项目交接
 
-> 最后更新：2026-10-26 15:12 CST
-> 交接状态：1.6.1 build 18 已安装并启动，main/功能分支与 v1.6.1 标签已推送；GitHub Release 资产上传与窗口交互验证待完成
+> 最后更新：2026-10-26 15:36 CST
+> 交接状态：1.6.1 build 18 已安装并由当前会话启动、请求切至前台；main/功能分支与 v1.6.1 标签已推送；GitHub Release 资产上传待完成
 
 ## 仓库定位
 
@@ -32,7 +32,7 @@
 - [x] `桌面清单/build.sh` 成功编译 x86_64 与 arm64；包内最低系统版本 13.0；`codesign --verify --deep --strict` 通过。
 - [x] 已安装包核对为 1.6.1 / build 18，架构为 x86_64 + arm64。
 - [x] ZIP 完整性检查通过。`iconutil` 报 `Invalid Iconset`，构建脚本使用已有 App 图标回退并成功签名。
-- [ ] GUI 窗口可见与交互未确认：退出旧进程后从已核验的 1.6.1 bundle 重新启动，`open -a` 返回成功且系统服务列表存在 DeskFlow 进程；System Events 二次查询仍报 `-10827`，尚无屏幕证据确认窗口显示并可操作。
+- [x] 2026-10-26 15:36 CST：确认此前 PID 14111 是仍驻留的旧进程；退出后在沙盒外通过 LaunchServices 执行 `open -na`，并通过 AppleScript 请求激活。新 PID 20190 的可执行映像由 `lsof` 确认为 `/Applications/桌面清单.app/Contents/MacOS/DeskFlow`，安装包 Info.plist 为 1.6.1 / build 18。此前“启动成功”实际只验证到旧进程；当前已确认新版进程运行并收到前台激活请求，但本会话没有屏幕采集能力，未取得窗口截图或交互证据。
 - [ ] 未在用户的 iCloud/EventKit 账户上实测首次授权、日程写回、事项互传及删除传播。
 - [ ] 未在配偶的 macOS 13 电脑上实机安装验证。
 

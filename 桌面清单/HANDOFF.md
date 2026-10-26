@@ -1,14 +1,14 @@
 # 桌面清单项目交接
 
-> 最后更新：2026-10-26 16:26 CST
-> 交接状态：1.6.2（build 19）已构建、安装至 `/Applications/桌面清单.app` 并启动；当前功能待提交推送，GitHub Release 尚未创建。
+> 最后更新：2026-10-26 16:29 CST
+> 交接状态：1.6.2（build 19）已构建、安装至 `/Applications/桌面清单.app` 并启动；功能提交 `ba29855` 已创建，交接更新、远端推送与发行标签待完成。
 
 ## 仓库定位
 
 - 代码仓库：`CaiQingsong8/Personal`
 - 代码分支：`codex/deskflow-calendar-sync`
 - 当前基线提交：`53746a6`（`docs: record DeskFlow app relaunch verification`）
-- 本轮功能提交：待提交
+- 本轮功能提交：`ba29855`（`feat: sync tasks independently with calendar and reminders`）
 - 本轮交接提交：待提交
 - 当前版本：1.6.2（build 19），最低 macOS 13.0，Universal 2
 - 当前版本包：`build/DeskFlow-1.6.2-macOS13-Universal.zip`
@@ -39,9 +39,9 @@
 
 ## Git 与发行
 
-- [ ] 1.6.2 功能与交接尚未提交、推送或打标签。
-- [ ] 需先检查远端当前分支，再推送 `codex/deskflow-calendar-sync` 并验证 `git ls-remote`。
-- [ ] 本地 `main` 当前比 `origin/main` ahead 1 / behind 25；不要直接推送或合并，先厘清分叉历史。当前功能工作只在 `codex/deskflow-calendar-sync`。
+- [x] 1.6.2 功能已在 `ba29855` 提交；交接文件需补充最终交接提交和远端核验结果。
+- [ ] 推送 `codex/deskflow-calendar-sync`，并在确认远端仍位于已核验基线后将该快进历史推送到 `main`。
+- [x] 本地 `main` 有独立提交并与 `origin/main` 分叉；未切换或覆盖本地 `main`。`origin/main` 是当前功能分支的祖先（本次提交前 `origin/main...HEAD` 为 `0 2`），因此只会把已验证功能分支历史快进推送到远端 `main`，不合并本地 `main` 的独立提交。
 - [ ] `v1.6.2` 标签和 GitHub Release 尚未创建。
 - [x] 保留 `v1.6.0`、`v1.6.1` 标签和对应 Git 时间线；不删除历史源码或提交。
 - [x] 1.6.1 既有交付记录：标签 `v1.6.1` 已推送，旧 ZIP 当时 SHA-256 为 `f1ecd1f9f723aebabf810aa134388a6ff4b3ff73ce8cc2915b9f893827a48f42`；GitHub Release 与附件当时尚未完成。该版本记录保留在 Git 历史，旧 ZIP 已从本地构建目录清理。

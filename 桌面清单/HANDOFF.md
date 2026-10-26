@@ -1,7 +1,7 @@
 # 桌面清单项目交接
 
-> 最后更新：2026-10-26 17:06 CST
-> 交接状态：1.6.3（build 21）已构建、安装至 `/Applications/桌面清单.app` 并启动；自测与静态检查通过，功能提交 `6361ccb`、`c3e51ac` 已创建；交接提交、远端推送、标签和 GitHub Release 待完成。
+> 最后更新：2026-10-26 17:10 CST
+> 交接状态：1.6.3（build 21）已构建、安装至 `/Applications/桌面清单.app` 并启动；自测与静态检查通过。GitHub 的 `main` 与功能分支均已推送至 `e59b5a9`，`v1.6.3` 标签已验证指向该提交；GitHub Release 页面及 ZIP 附件仍未创建。
 
 ## 仓库定位
 
@@ -9,7 +9,7 @@
 - 代码分支：`codex/deskflow-calendar-sync`
 - 当前基线提交：`7a4b536`（`docs: update DeskFlow 1.6.2 handoff`）
 - 本轮功能提交：`6361ccb`（`fix: show local reminders and move calendar sync`）、`c3e51ac`（`fix: distinguish calendar schedule and task sync`）
-- 本轮交接提交：本文件所在提交（以 `git log -1` 为准）
+- 本轮交接提交：本文件所在提交（以 `git log -1` 为准）；`v1.6.3` 发布标签指向 `e59b5a9`，该提交含 build 21 代码和交接记录。
 - 当前版本：1.6.3（build 21），最低 macOS 13.0，Universal 2
 - 当前版本包：`build/DeskFlow-1.6.3-macOS13-Universal.zip`
 - SHA-256：`a16cc680ad17235daaefe9db2f102031a222b482f5533eb9e7a02fd93732c3f3`
@@ -49,8 +49,9 @@
 ## Git 与发行
 
 - [x] 1.6.2 功能与交接已在 `ba29855`、`7a4b536` 提交；分支、远端 `main`、`v1.6.2` 标签已核验推送。
-- [ ] 提交并推送 1.6.3 到 `codex/deskflow-calendar-sync` 和远端 `main`；推送前再次确认远端仍可快进。
-- [ ] 创建并推送 `v1.6.3`，发布 GitHub Release 并附上 Universal ZIP。
+- [x] 1.6.3 已推送至 `codex/deskflow-calendar-sync` 与远端 `main`；两者均核验指向 `e59b5a9`。
+- [x] 已创建并推送 `v1.6.3`，标签对象指向 `e59b5a9`。
+- [ ] GitHub Release 页面和 Universal ZIP 附件尚未创建；需通过有写权限的 GitHub Releases UI/API 完成。
 - [x] `v1.6.2` 标签已推送；截至本轮开始尚无 GitHub Release，保留其 Git 时间线。
 - [x] 保留 `v1.6.0`、`v1.6.1` 标签和对应 Git 时间线；不删除历史源码或提交。
 - [x] 1.6.1 既有交付记录：标签 `v1.6.1` 已推送，旧 ZIP 当时 SHA-256 为 `f1ecd1f9f723aebabf810aa134388a6ff4b3ff73ce8cc2915b9f893827a48f42`；GitHub Release 与附件当时尚未完成。该版本记录保留在 Git 历史，旧 ZIP 已从本地构建目录清理。

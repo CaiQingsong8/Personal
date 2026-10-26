@@ -19,6 +19,8 @@ struct CalendarDayReminder: Identifiable, Hashable {
     let hasSpecificTime: Bool
     let isCompleted: Bool
     let listTitle: String
+    let deskFlowItemID: UUID?
+    let externalIdentifier: String?
 
     var displayTitle: String {
         guard hasSpecificTime else { return title }
@@ -113,7 +115,9 @@ final class ReminderSyncService: ObservableObject {
     func requestAccess() async {
         guard !isWorking else { return }
         isWorking = true
+        statusMessage = "正在请求 Mac 提醒事项访问权限…"
         defer { isWorking = false }
+        NSApp.activate(ignoringOtherApps: true)
         do {
             let granted: Bool
             if #available(macOS 14.0, *) {
@@ -125,7 +129,9 @@ final class ReminderSyncService: ObservableObject {
             if granted && isAuthorized {
                 statusMessage = accessStatusMessage
             } else {
-                statusMessage = authorizationDescription
+                statusMessage = authorizationStatus == .notDetermined
+                    ? "系统尚未返回授权结果；若没有出现弹窗，请在系统设置 → 隐私与安全性 → 提醒事项中检查权限。"
+                    : authorizationDescription
             }
         } catch {
             authorizationStatus = EKEventStore.authorizationStatus(for: .reminder)
@@ -227,7 +233,9 @@ final class ReminderSyncService: ObservableObject {
                     dueDate: due.date,
                     hasSpecificTime: due.hasSpecificTime,
                     isCompleted: reminder.isCompleted,
-                    listTitle: reminder.calendar?.title ?? Self.reminderListName
+                    listTitle: reminder.calendar?.title ?? Self.reminderListName,
+                    deskFlowItemID: taskID(in: reminder),
+                    externalIdentifier: reminder.calendarItemExternalIdentifier
                 )
                 result[day, default: []].append(item)
             }

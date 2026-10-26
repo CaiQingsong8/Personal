@@ -57,15 +57,12 @@ struct MonthView: View {
                 layerButton("事项", icon: "checklist", color: .purple, isOn: showsReminders) {
                     showsReminders.toggle()
                 }
-                .help("显示或隐藏所选 Mac 事项列表")
+                .help("显示或隐藏本地事项及所选 Mac 提醒事项")
                 layerButton("专注", icon: "leaf.fill", color: .green, isOn: showsFocus) {
                     showsFocus.toggle()
                 }
             }
             .padding(.horizontal, 12)
-
-            CalendarSyncPanel()
-                .padding(.horizontal, 10)
 
         }
         .padding(.top, 10)
@@ -186,7 +183,8 @@ struct MonthView: View {
     }()
 }
 
-private struct CalendarSyncPanel: View {
+struct CalendarSyncPanel: View {
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var calendarSync: CalendarSyncService
     @State private var showScheduleManager = false
@@ -313,6 +311,19 @@ private struct CalendarSyncPanel: View {
                 .environmentObject(store)
                 .environmentObject(calendarSync)
         }
+        .onAppear {
+            calendarSync.refreshCalendars()
+            calendarSync.loadMonthEvents(containing: store.displayedMonth, appStore: store)
+        }
+        .onChange(of: scenePhase) { phase in
+            guard phase == .active else { return }
+            calendarSync.refreshAuthorizationStatus()
+            calendarSync.loadMonthEvents(containing: store.displayedMonth, appStore: store)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
+            calendarSync.refreshCalendars()
+            calendarSync.loadMonthEvents(containing: store.displayedMonth, appStore: store)
+        }
     }
 }
 
@@ -421,11 +432,16 @@ struct ReminderSyncPanel: View {
 
             HStack(spacing: 5) {
                 if reminderSync.isWorking { ProgressView().controlSize(.mini) }
-                Text(reminderSync.statusMessage)
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                if reminderSync.isWorking || reminderSync.isAuthorized ||
+                    reminderSync.statusMessage != reminderSync.authorizationDescription {
+                    Text(reminderSync.statusMessage)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Spacer(minLength: 0)
+                }
                 Text("删除项会随同步从 Mac 事项移除")
                     .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
@@ -470,7 +486,36 @@ struct DayCell: View {
     }
     private var focusSeconds: Int { showsFocus ? store.focusSeconds(on: date) : 0 }
     private var reminders: [CalendarDayReminder] {
-        showsReminders ? reminderSync.reminders(on: date) : []
+        guard showsReminders else { return [] }
+
+        let allLocalItems = store.reminderItems
+        let localItems = store.reminderItems(on: date).map { item in
+            CalendarDayReminder(
+                id: "deskflow-\(item.id.uuidString)",
+                title: item.title,
+                dueDate: item.dueDate,
+                hasSpecificTime: item.hasSpecificTime ?? false,
+                isCompleted: item.isCompleted,
+                listTitle: item.reminderListIdentifier == nil ? "DeskFlow 事项" : "Mac 事项",
+                deskFlowItemID: item.id,
+                externalIdentifier: item.reminderCalendarItemExternalIdentifier
+            )
+        }
+        let localIDs = Set(allLocalItems.map(\.id))
+        let localCalendarIDs = Set(allLocalItems.compactMap(\.reminderCalendarItemIdentifier))
+        let localExternalIDs = Set(allLocalItems.compactMap(\.reminderCalendarItemExternalIdentifier))
+        let macItems = reminderSync.reminders(on: date).filter { item in
+            if let id = item.deskFlowItemID, localIDs.contains(id) { return false }
+            if localCalendarIDs.contains(item.id) { return false }
+            if let externalID = item.externalIdentifier, localExternalIDs.contains(externalID) { return false }
+            return true
+        }
+
+        return (localItems + macItems).sorted {
+            if $0.isCompleted != $1.isCompleted { return !$0.isCompleted }
+            if $0.dueDate != $1.dueDate { return $0.dueDate < $1.dueDate }
+            return $0.title.localizedStandardCompare($1.title) == .orderedAscending
+        }
     }
 
     var body: some View {

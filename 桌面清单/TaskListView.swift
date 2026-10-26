@@ -115,6 +115,8 @@ struct TaskListView: View {
 
             Divider().opacity(0.6)
             if todaySection == .tasks {
+                CalendarSyncPanel()
+                    .padding(.horizontal, 10)
                 TaskCalendarSyncPanel()
                     .padding(.horizontal, 10)
             }
@@ -318,7 +320,6 @@ private enum TodaySection: Hashable {
 }
 
 private struct TaskCalendarSyncPanel: View {
-    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var calendarSync: CalendarSyncService
 
@@ -335,96 +336,25 @@ private struct TaskCalendarSyncPanel: View {
                     .foregroundStyle(calendarSync.connectionStatus.hasPrefix("已连接") ? Color.green : Color.secondary)
             }
 
-            if calendarSync.isAuthorized {
-                HStack(spacing: 6) {
-                    if calendarSync.calendars.isEmpty {
-                        Text("没有找到可访问的日历")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        Picker("任务同步日历", selection: $calendarSync.selectedCalendarID) {
-                            ForEach(calendarSync.calendars) { calendar in
-                                Text(calendar.displayName).tag(calendar.id)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .frame(maxWidth: .infinity)
-                        .accessibilityLabel("选择任务同步日历")
-                    }
-                    Button {
-                        calendarSync.createOrUseScheduleCalendar()
-                    } label: {
-                        Image(systemName: "calendar.badge.plus")
-                            .frame(width: 25, height: 25)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .help("创建或选择“\(calendarSync.scheduleCalendarName)”")
-                    .disabled(calendarSync.isWorking)
-                }
-
-                Button {
-                    Task { await calendarSync.syncTasksToCalendar(from: store) }
-                } label: {
-                    Label("同步任务到日历", systemImage: "arrow.triangle.2.circlepath")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .disabled(calendarSync.isWorking || !calendarSync.canWriteToSelectedCalendar)
-            } else {
-                HStack(spacing: 8) {
-                    Text(calendarSync.authorizationDescription)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                    Spacer(minLength: 0)
-                    if calendarSync.authorizationStatus == .denied || calendarSync.authorizationStatus == .restricted {
-                        Button("打开权限设置") { calendarSync.openPrivacySettings() }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                    } else {
-                        Button("允许访问") {
-                            Task {
-                                await calendarSync.requestAccess()
-                                if calendarSync.isAuthorized {
-                                    calendarSync.loadMonthEvents(containing: store.displayedMonth, appStore: store)
-                                }
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .disabled(calendarSync.isWorking)
-                    }
-                }
+            Button {
+                Task { await calendarSync.syncTasksToCalendar(from: store) }
+            } label: {
+                Label("同步任务到日历", systemImage: "arrow.triangle.2.circlepath")
+                    .frame(maxWidth: .infinity)
             }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .disabled(calendarSync.isWorking || !calendarSync.canWriteToSelectedCalendar)
 
-            HStack(spacing: 5) {
-                if calendarSync.isWorking { ProgressView().controlSize(.mini) }
-                Text(calendarSync.statusMessage)
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text("仅同步任务；Mac 事项保持独立")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-            }
+            Text("仅同步清单任务；Mac 日程与事项保持独立")
+                .font(.system(size: 9))
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 7)
         .background(Color.primary.opacity(0.035))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .onAppear { calendarSync.refreshCalendars() }
-        .onChange(of: scenePhase) { phase in
-            if phase == .active { calendarSync.refreshAuthorizationStatus() }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
-            calendarSync.refreshCalendars()
-        }
     }
 }
 

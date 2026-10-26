@@ -196,7 +196,7 @@ struct CalendarSyncPanel: View {
                     HStack(spacing: 5) {
                         Image(systemName: "calendar.badge.arrowtriangle.2.circlepath")
                             .foregroundStyle(Color.accentColor)
-                        Text("Mac 日历同步" + (store.calendarSchedules.isEmpty ? "" : " · 日程 \(store.calendarSchedules.count)"))
+                        Text("Mac 日历日程同步" + (store.calendarSchedules.isEmpty ? "" : " · 日程 \(store.calendarSchedules.count)"))
                             .font(.caption.weight(.semibold))
                     }
                 }
@@ -253,7 +253,7 @@ struct CalendarSyncPanel: View {
                     Button {
                         Task { await calendarSync.exportToCalendar(from: store) }
                     } label: {
-                        Label("同步到日历", systemImage: "arrow.triangle.2.circlepath")
+                        Label("回写日程", systemImage: "arrow.triangle.2.circlepath")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -288,7 +288,7 @@ struct CalendarSyncPanel: View {
             }
 
             HStack(spacing: 5) {
-                if calendarSync.isWorking {
+                if calendarSync.isWorking && !calendarSync.isTaskSyncing {
                     ProgressView().controlSize(.mini)
                 }
                 Text(calendarSync.statusMessage)

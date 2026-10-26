@@ -57,7 +57,9 @@ final class CalendarSyncService: ObservableObject {
     }
     @Published private(set) var monthEventsByDay: [Date: [CalendarDayEvent]] = [:]
     @Published private(set) var isWorking = false
+    @Published private(set) var isTaskSyncing = false
     @Published private(set) var statusMessage = "尚未连接 Mac 日历"
+    @Published private(set) var taskStatusMessage = ""
 
     private let eventStore = EKEventStore()
     private static let selectedCalendarKey = "DeskFlowSelectedCalendarID"
@@ -472,15 +474,19 @@ final class CalendarSyncService: ObservableObject {
     }
 
     func syncTasksToCalendar(from appStore: AppStore) async {
-        guard prepareForTransfer(requireWritable: true) else { return }
+        guard prepareForTransfer(requireWritable: true, taskSync: true) else { return }
         guard let calendar = selectedCalendar else {
-            statusMessage = "请先选择一个可编辑日历"
+            taskStatusMessage = "请先选择一个可编辑日历"
             return
         }
 
         isWorking = true
-        defer { isWorking = false }
-        statusMessage = "正在检查已关联的任务日历事件…"
+        isTaskSyncing = true
+        defer {
+            isTaskSyncing = false
+            isWorking = false
+        }
+        taskStatusMessage = "正在检查已关联的任务日历事件…"
         await Task.yield()
 
         let range = transferRange
@@ -541,19 +547,19 @@ final class CalendarSyncService: ObservableObject {
                 }
             } catch {
                 if created + updated + moved > 0 { appStore.applyTasks(tasks) }
-                statusMessage = "任务同步中断：新增 \(created)，更新 \(updated)，移入所选日历 \(moved)，删除 \(deletionSummary.removed)，待重试 \(deletionSummary.pending)；\(error.localizedDescription)"
+                taskStatusMessage = "任务同步中断：新增 \(created)，更新 \(updated)，移入所选日历 \(moved)，删除 \(deletionSummary.removed)，待重试 \(deletionSummary.pending)；\(error.localizedDescription)"
                 return
             }
 
             if processedTaskCount.isMultiple(of: 10) {
-                statusMessage = "正在同步任务到“\(calendar.title)”：已检查 \(processedTaskCount)/\(eligibleTaskCount) 项…"
+                taskStatusMessage = "正在同步清单任务到“\(calendar.title)”：已检查 \(processedTaskCount)/\(eligibleTaskCount) 项…"
                 await Task.yield()
             }
         }
 
         if created + updated + moved > 0 { appStore.applyTasks(tasks) }
         loadMonthEvents(containing: appStore.displayedMonth, appStore: appStore)
-        statusMessage = "任务已写入“\(calendar.title)”：新增 \(created)，更新 \(updated)，移入所选日历 \(moved)，删除 \(deletionSummary.removed)，待重试 \(deletionSummary.pending)，未安全匹配 \(conflicts)"
+        taskStatusMessage = "清单任务已写入“\(calendar.title)”：新增 \(created)，更新 \(updated)，移入所选日历 \(moved)，删除 \(deletionSummary.removed)，待重试 \(deletionSummary.pending)，未安全匹配 \(conflicts)"
     }
 
     func openPrivacySettings() {
@@ -585,19 +591,24 @@ final class CalendarSyncService: ObservableObject {
         return (start, end)
     }
 
-    private func prepareForTransfer(requireWritable: Bool) -> Bool {
+    private func prepareForTransfer(requireWritable: Bool, taskSync: Bool = false) -> Bool {
+        func report(_ message: String) {
+            if taskSync { taskStatusMessage = message }
+            else { statusMessage = message }
+        }
+
         authorizationStatus = EKEventStore.authorizationStatus(for: .event)
         guard isAuthorized else {
-            statusMessage = "请先允许完整日历访问权限"
+            report("请先允许完整日历访问权限")
             return false
         }
         refreshCalendars()
         guard hasSelectedCalendar else {
-            statusMessage = "没有可访问的日历，请先选择或创建一个日历"
+            report("没有可访问的日历，请先选择或创建一个日历")
             return false
         }
         guard !requireWritable || canWriteToSelectedCalendar else {
-            statusMessage = "所选日历为只读；请选择可编辑日历后再同步写回"
+            report("所选日历为只读；请选择可编辑日历后再同步写回")
             return false
         }
         return true

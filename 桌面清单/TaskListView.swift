@@ -328,7 +328,7 @@ private struct TaskCalendarSyncPanel: View {
             HStack(spacing: 5) {
                 Image(systemName: "calendar.badge.arrowtriangle.2.circlepath")
                     .foregroundStyle(Color.accentColor)
-                Text("Mac 日历任务同步")
+                Text("Mac 日历清单任务同步")
                     .font(.caption.weight(.semibold))
                 Spacer(minLength: 4)
                 Text(calendarSync.connectionStatus)
@@ -339,17 +339,23 @@ private struct TaskCalendarSyncPanel: View {
             Button {
                 Task { await calendarSync.syncTasksToCalendar(from: store) }
             } label: {
-                Label("同步任务到日历", systemImage: "arrow.triangle.2.circlepath")
+                Label("同步清单任务到日历", systemImage: "arrow.triangle.2.circlepath")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
             .disabled(calendarSync.isWorking || !calendarSync.canWriteToSelectedCalendar)
 
-            Text("仅同步清单任务；Mac 日程与事项保持独立")
-                .font(.system(size: 9))
-                .foregroundStyle(.tertiary)
-                .frame(maxWidth: .infinity, alignment: .trailing)
+            HStack(spacing: 5) {
+                if calendarSync.isTaskSyncing { ProgressView().controlSize(.mini) }
+                Text(calendarSync.taskStatusMessage.isEmpty
+                     ? "仅同步清单任务；Mac 日程与事项保持独立"
+                     : calendarSync.taskStatusMessage)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 7)

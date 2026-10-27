@@ -370,11 +370,48 @@ private struct ReminderTodayView: View {
     @EnvironmentObject private var reminderSync: ReminderSyncService
     @State private var newTitle = ""
     @State private var editingItem: ReminderItem?
+    @State private var isSelecting = false
+    @State private var selectedItemIDs = Set<UUID>()
+    @State private var confirmBatchDelete = false
 
     private var items: [ReminderItem] { store.reminderItems(on: store.selectedDate) }
+    private var recentItems: [ReminderItem] {
+        let calendar = Calendar.current
+        let today = Date().startOfDay
+        guard let start = calendar.date(byAdding: .day, value: -29, to: today),
+              let end = calendar.date(byAdding: .day, value: 1, to: today) else { return [] }
+        return store.reminderItems
+            .filter { $0.dueDate >= start && $0.dueDate < end }
+            .sorted {
+                if !calendar.isDate($0.dueDate, inSameDayAs: $1.dueDate) { return $0.dueDate > $1.dueDate }
+                if $0.isCompleted != $1.isCompleted { return !$0.isCompleted }
+                return $0.dueDate < $1.dueDate
+            }
+    }
+    private var recentGroups: [ReminderDayGroup] {
+        let grouped = Dictionary(grouping: recentItems) { $0.dueDate.startOfDay }
+        return grouped.keys.sorted(by: >).map { ReminderDayGroup(date: $0, items: grouped[$0] ?? []) }
+    }
+    private var allRecentItemIDs: Set<UUID> { Set(recentItems.map(\.id)) }
 
     var body: some View {
         VStack(spacing: 8) {
+            if isSelecting {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("批量选择事项")
+                            .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        Text("最近 30 天（含今天） · 共 \(recentItems.count) 项")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("取消") { cancelSelection() }
+                        .buttonStyle(.borderless)
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 14)
+            } else {
             HStack {
                 Button {
                     store.selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: store.selectedDate) ?? store.selectedDate
@@ -415,16 +452,68 @@ private struct ReminderTodayView: View {
             .background(Color.primary.opacity(0.045))
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .padding(.horizontal, 14)
+            }
 
-            if items.isEmpty {
+            HStack {
+                if isSelecting {
+                    Button(selectedItemIDs.isSuperset(of: allRecentItemIDs) && !allRecentItemIDs.isEmpty
+                           ? "取消全选" : "全选最近30天") {
+                        if selectedItemIDs.isSuperset(of: allRecentItemIDs) {
+                            selectedItemIDs.subtract(allRecentItemIDs)
+                        } else {
+                            selectedItemIDs.formUnion(allRecentItemIDs)
+                        }
+                    }
+                    .disabled(allRecentItemIDs.isEmpty)
+                    Text("已选 \(selectedItemIDs.count) 项").foregroundStyle(.secondary)
+                } else {
+                    Button {
+                        isSelecting = true
+                        selectedItemIDs.removeAll()
+                    } label: {
+                        Label("批量选择", systemImage: "checklist")
+                    }
+                    Text("最近 30 天").foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .font(.caption)
+            .buttonStyle(.borderless)
+            .padding(.horizontal, 17)
+
+            if isSelecting && !recentGroups.isEmpty {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 10) {
+                        ForEach(recentGroups) { group in
+                            VStack(alignment: .leading, spacing: 5) {
+                                HStack {
+                                    Text(Self.groupDateFormatter.string(from: group.date))
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    Text("\(group.items.count) 项")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                                ForEach(group.items) { item in
+                                    ReminderTodayRow(item: item, editingItem: $editingItem,
+                                                     isSelecting: true, selectedItemIDs: $selectedItemIDs)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                }
+            } else if (isSelecting ? recentItems : items).isEmpty {
                 VStack(spacing: 7) {
                     Spacer()
                     Image(systemName: "checklist")
                         .font(.system(size: 28, weight: .light))
                         .foregroundStyle(Color.purple.opacity(0.8))
-                    Text("这一天还没有事项")
+                    Text(isSelecting ? "最近 30 天没有事项" : "这一天还没有事项")
                         .font(.subheadline.weight(.medium))
-                    Text("导入 Mac 事项，或在上方创建一条。")
+                    Text(isSelecting ? "可以取消批量选择，继续查看其他日期。" : "导入 Mac 事项，或在上方创建一条。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -434,11 +523,18 @@ private struct ReminderTodayView: View {
                 ScrollView {
                     LazyVStack(spacing: 5) {
                         ForEach(items) { item in
-                            ReminderTodayRow(item: item, editingItem: $editingItem)
+                            ReminderTodayRow(item: item, editingItem: $editingItem,
+                                             isSelecting: false, selectedItemIDs: $selectedItemIDs)
                         }
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
+                }
+            }
+
+            if isSelecting && !selectedItemIDs.isEmpty {
+                Button("删除已选 \(selectedItemIDs.count) 项", role: .destructive) {
+                    confirmBatchDelete = true
                 }
             }
 
@@ -448,6 +544,17 @@ private struct ReminderTodayView: View {
         }
         .sheet(item: $editingItem) { item in
             ReminderItemEditorView(item: item)
+        }
+        .confirmationDialog("删除已选事项？", isPresented: $confirmBatchDelete) {
+            Button("删除 \(selectedItemIDs.count) 项", role: .destructive) {
+                store.deleteReminderItems(ids: selectedItemIDs.intersection(allRecentItemIDs))
+                cancelSelection()
+            }
+        } message: {
+            Text("将删除最近 30 天（含今天）所选事项；已关联的 Mac 事项会在下次同步时删除。")
+        }
+        .onChange(of: store.reminderItems.map(\.id)) { ids in
+            selectedItemIDs.formIntersection(Set(ids))
         }
         .onAppear {
             reminderSync.refreshAuthorizationStatus()
@@ -474,6 +581,11 @@ private struct ReminderTodayView: View {
         }
     }
 
+    private func cancelSelection() {
+        isSelecting = false
+        selectedItemIDs.removeAll()
+    }
+
     private func addItem() {
         guard !newTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         store.addReminderItem(title: newTitle, dueDate: store.selectedDate)
@@ -493,19 +605,39 @@ private struct ReminderTodayView: View {
         formatter.dateFormat = "EEEE"
         return formatter
     }()
+
+    private static let groupDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日 EEEE"
+        return formatter
+    }()
+}
+
+private struct ReminderDayGroup: Identifiable {
+    let date: Date
+    let items: [ReminderItem]
+    var id: Date { date }
 }
 
 private struct ReminderTodayRow: View {
     @EnvironmentObject private var store: AppStore
     let item: ReminderItem
     @Binding var editingItem: ReminderItem?
+    let isSelecting: Bool
+    @Binding var selectedItemIDs: Set<UUID>
 
     var body: some View {
         HStack(spacing: 9) {
-            Button { store.toggleReminderItem(item) } label: {
-                Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+            Button {
+                if isSelecting { toggleSelection() } else { store.toggleReminderItem(item) }
+            } label: {
+                Image(systemName: isSelecting
+                      ? (selectedItemIDs.contains(item.id) ? "checkmark.square.fill" : "square")
+                      : (item.isCompleted ? "checkmark.circle.fill" : "circle"))
                     .font(.system(size: 19))
-                    .foregroundStyle(item.isCompleted ? Color.purple : Color.secondary.opacity(0.65))
+                    .foregroundStyle((isSelecting ? selectedItemIDs.contains(item.id) : item.isCompleted)
+                                     ? Color.purple : Color.secondary.opacity(0.65))
             }
             .buttonStyle(.plain)
             VStack(alignment: .leading, spacing: 2) {
@@ -526,31 +658,39 @@ private struct ReminderTodayRow: View {
                 .foregroundStyle(Color.purple)
             }
             .contentShape(Rectangle())
-            .onTapGesture { editingItem = item }
+            .onTapGesture { if isSelecting { toggleSelection() } else { editingItem = item } }
             Spacer(minLength: 4)
-            Button { store.selectTaskForTimer(TodoItem(id: item.id, title: item.title, notes: item.notes, dueDate: item.dueDate)) } label: {
-                Image(systemName: store.timerTaskID == item.id ? "timer.circle.fill" : "timer")
-                    .foregroundStyle(store.timerTaskID == item.id ? Color.accentColor : Color.secondary)
-                    .frame(width: 30, height: 30)
+            if !isSelecting {
+                Button { store.selectTaskForTimer(TodoItem(id: item.id, title: item.title, notes: item.notes, dueDate: item.dueDate)) } label: {
+                    Image(systemName: store.timerTaskID == item.id ? "timer.circle.fill" : "timer")
+                        .foregroundStyle(store.timerTaskID == item.id ? Color.accentColor : Color.secondary)
+                        .frame(width: 30, height: 30)
+                }
+                .buttonStyle(.plain)
+                Button { editingItem = item } label: {
+                    Image(systemName: "ellipsis")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 32, height: 30)
+                        .background(Color.primary.opacity(0.055))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
-            Button { editingItem = item } label: {
-                Image(systemName: "ellipsis")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 32, height: 30)
-                    .background(Color.primary.opacity(0.055))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(Color.purple.opacity(0.045))
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .contextMenu {
-            Button("编辑") { editingItem = item }
-            Button("删除", role: .destructive) { store.deleteReminderItem(item) }
+            if !isSelecting {
+                Button("编辑") { editingItem = item }
+                Button("删除", role: .destructive) { store.deleteReminderItem(item) }
+            }
         }
+    }
+
+    private func toggleSelection() {
+        if !selectedItemIDs.insert(item.id).inserted { selectedItemIDs.remove(item.id) }
     }
 
     private static let timeFormatter: DateFormatter = {

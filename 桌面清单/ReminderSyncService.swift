@@ -216,10 +216,16 @@ final class ReminderSyncService: ObservableObject {
         }
 
         Task {
-            let fetched = await fetchReminders(in: [list])
+            guard let fetched = await fetchReminders(in: [list]) else {
+                guard token == monthLoadToken else { return }
+                statusMessage = "读取 Mac 事项失败，请稍后重试"
+                return
+            }
             guard token == monthLoadToken else { return }
             var result: [Date: [CalendarDayReminder]] = [:]
+            var displayedTaskIDs = Set<UUID>()
             for reminder in fetched {
+                if isPendingDeletion(reminder, matching: appStore.pendingReminderDeletions, among: fetched) { continue }
                 guard let title = reminder.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty else { continue }
                 let due = ReminderDateSemantics.dueDate(
                     components: reminder.dueDateComponents,
@@ -227,6 +233,7 @@ final class ReminderSyncService: ObservableObject {
                 )
                 let day = due.date.startOfDay
                 guard day >= interval.start && day < interval.end else { continue }
+                if let taskID = taskID(in: reminder), !displayedTaskIDs.insert(taskID).inserted { continue }
                 let item = CalendarDayReminder(
                     id: reminder.calendarItemIdentifier,
                     title: title,
@@ -299,7 +306,10 @@ final class ReminderSyncService: ObservableObject {
         defer { isWorking = false }
 
         let range = transferRange
-        let all = await fetchReminders(in: eventStore.calendars(for: .reminder))
+        guard let all = await fetchReminders(in: eventStore.calendars(for: .reminder)) else {
+            statusMessage = "读取 Mac 事项失败，请稍后重试；待删除事项已保留"
+            return
+        }
         let pendingDeletions = appStore.pendingReminderDeletions
         let identifiersBeingDeleted = Set(pendingDeletions.flatMap {
             matchingReminderIdentifiers(for: $0, in: all)
@@ -407,7 +417,10 @@ final class ReminderSyncService: ObservableObject {
         statusMessage = "正在检查已关联的提醒事项…"
         await Task.yield()
 
-        let all = await fetchReminders(in: eventStore.calendars(for: .reminder))
+        guard let all = await fetchReminders(in: eventStore.calendars(for: .reminder)) else {
+            statusMessage = "读取 Mac 事项失败，请稍后重试；待删除事项已保留"
+            return
+        }
         let deletionSummary = syncPendingDeletions(in: appStore, reminders: all)
         var items = appStore.reminderItems
         var created = 0
@@ -518,12 +531,12 @@ final class ReminderSyncService: ObservableObject {
         return true
     }
 
-    private func fetchReminders(in calendars: [EKCalendar]) async -> [EKReminder] {
+    private func fetchReminders(in calendars: [EKCalendar]) async -> [EKReminder]? {
         guard !calendars.isEmpty else { return [] }
         let predicate = eventStore.predicateForReminders(in: calendars)
         return await withCheckedContinuation { continuation in
             eventStore.fetchReminders(matching: predicate) { reminders in
-                continuation.resume(returning: reminders ?? [])
+                continuation.resume(returning: reminders)
             }
         }
     }
@@ -624,7 +637,9 @@ final class ReminderSyncService: ObservableObject {
         var summary = ReminderDeletionSummary()
         for pending in appStore.pendingReminderDeletions {
             let identifiers = matchingReminderIdentifiers(for: pending, in: reminders)
-            guard identifiers.count <= 1 else {
+            // A missing or ambiguous match may mean the source list is temporarily
+            // unavailable. Keep the tombstone so a later sync can retry safely.
+            guard identifiers.count == 1 else {
                 summary.pending += 1
                 continue
             }

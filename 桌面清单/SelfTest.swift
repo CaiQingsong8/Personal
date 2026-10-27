@@ -69,6 +69,24 @@ struct DeskFlowSelfTest {
         let postDeletePersisted = try decoder.decode(PersistedData.self, from: postDeleteData)
         precondition(postDeletePersisted.pendingCalendarDeletions.first(where: { $0.taskID == updated.id })?.kind == .task)
 
+        let linked = ReminderItem(title: "已关联事项", dueDate: Date(),
+                                  reminderCalendarItemIdentifier: "reminder-id",
+                                  reminderCalendarItemExternalIdentifier: "reminder-external",
+                                  reminderListIdentifier: "reminder-list")
+        let local = ReminderItem(title: "本地事项", dueDate: Date())
+        let retained = ReminderItem(title: "保留事项", dueDate: Date())
+        store.applyReminderItems([linked, local, retained])
+        store.deleteReminderItems(ids: [linked.id, local.id])
+        precondition(store.reminderItems.map(\.id) == [retained.id])
+        precondition(store.pendingReminderDeletions.count == 1)
+        let deletion = store.pendingReminderDeletions[0]
+        precondition(deletion.taskID == linked.id && deletion.itemIdentifier == "reminder-id")
+        precondition(deletion.externalIdentifier == "reminder-external" && deletion.listIdentifier == "reminder-list")
+        precondition(store.tasks.count == 1)
+        let persistedDeletion = try decoder.decode(PersistedData.self, from: Data(contentsOf: store.dataFile))
+        precondition(persistedDeletion.pendingReminderDeletions == [deletion])
+        precondition(persistedDeletion.reminderItems.map(\.id) == [retained.id])
+
         print("SELF_TEST_OK tasks=\(persisted.tasks.count) reminders=\(persisted.reminderItems.count) focusRecords=\(persisted.focusRecords.count) data=\(store.dataFile.path)")
     }
 }

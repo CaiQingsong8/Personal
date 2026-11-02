@@ -39,6 +39,23 @@ struct CalendarSemanticsTests {
         )
         precondition(firstTaskStart == defaultStart)
 
+        let ten = makeDate(2026, 10, 22, hour: 10, minute: 0, second: 0, calendar: calendar)
+        let fifteen = makeDate(2026, 10, 22, hour: 15, minute: 0, second: 0, calendar: calendar)
+        precondition(TaskScheduleDefaults.endDate(start: ten, duration: 3 * 3600, calendar: calendar) == fifteen)
+        precondition(TaskScheduleDefaults.nextStart(after: fifteen, calendar: calendar) == fifteen)
+        let seventeen = makeDate(2026, 10, 22, hour: 17, minute: 0, second: 0, calendar: calendar)
+        let nineteen = makeDate(2026, 10, 22, hour: 19, minute: 0, second: 0, calendar: calendar)
+        let tomorrowNine = makeDate(2026, 10, 23, hour: 9, minute: 0, second: 0, calendar: calendar)
+        precondition(TaskScheduleDefaults.endDate(start: seventeen, duration: 2 * 3600, calendar: calendar) == nineteen)
+        precondition(TaskScheduleDefaults.nextStart(after: nineteen, calendar: calendar) == tomorrowNine)
+        let noon = makeDate(2026, 10, 22, hour: 12, minute: 0, second: 0, calendar: calendar)
+        let afternoon = makeDate(2026, 10, 22, hour: 14, minute: 0, second: 0, calendar: calendar)
+        let eighteen = makeDate(2026, 10, 22, hour: 18, minute: 0, second: 0, calendar: calendar)
+        precondition(TaskScheduleDefaults.endDate(start: ten, duration: 2 * 3600, calendar: calendar) == noon)
+        precondition(TaskScheduleDefaults.nextStart(after: noon, calendar: calendar) == afternoon)
+        precondition(TaskScheduleDefaults.nextStart(after: eighteen, calendar: calendar) == eighteen)
+        precondition(TaskScheduleDefaults.endDate(start: noon, duration: 3600, calendar: calendar) == fifteen)
+
         let reminderCreatedAt = makeDate(2026, 10, 22, hour: 17, minute: 45, second: 0, calendar: calendar)
         let reminderWithoutDueDate = ReminderDateSemantics.dueDate(
             components: nil,

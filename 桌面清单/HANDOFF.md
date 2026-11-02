@@ -1,5 +1,12 @@
 # 桌面清单项目交接
 
+## 2026-11-02：1.6.5 任务午休与次日排期
+
+- 新建任务与同步日历共用任务结束时间计算，12:00–14:00 不计入任务时长；前项结束超过 18:00 时，下一项默认在次日 9:00，次日已有任务则顺延。跨日新建后列表切换至任务日期。
+- 任务列表显示开始、结束及工作时长；同步既有清单任务时，其关联日历事件结束时间可能按新午休规则更新；独立 Mac 日历日程不受影响。
+- `CalendarSemanticsTests.swift` 与临时数据目录的 `SelfTest.swift` 通过，覆盖午休、18:00 边界、跨日及次日已有任务；macOS 13 Universal 2 构建、签名与 ZIP 解压验证通过。
+- 安装包 `build/DeskFlow-1.6.5-macOS13-Universal.zip`：SHA-256 `cbfe0bc8f870363becbc98ebebe6972317b70a068ccb07dd25c1b21c28c813ac`。真实 iCloud 同步与 macOS 13 实机尚未验证。
+
 ## 2026-10-27：1.6.4 事项批量删除与重复显示修复
 
 - 2026-10-29：GitHub Release `v1.6.4` 已发布，标签指向代码提交 `63d2bf1`；安装包 `DeskFlow-1.6.4-macOS13-Universal.zip` 已上传，GitHub 返回的 SHA-256 与本地一致：`52cd3d45322db5b04aa8603cfa11b8f943e0e16d25253177166f9656d40725c5`。发布页：`https://github.com/CaiQingsong8/Personal/releases/tag/v1.6.4`。

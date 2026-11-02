@@ -95,20 +95,26 @@ final class AppStore: ObservableObject {
         guard !clean.isEmpty else { return }
         let taskDate = dueDate ?? selectedDate
         let calendar = Calendar.current
-        let previousTask = tasks
-            .filter { calendar.isDate($0.dueDate, inSameDayAs: taskDate) }
-            .max { $0.dueDate < $1.dueDate }
-        let previousTaskEnd = previousTask.flatMap { task -> Date? in
-            guard task.hasSpecificTime != false else { return nil }
-            return task.dueDate.addingTimeInterval(task.calendarDurationSeconds ?? TaskScheduleDefaults.durationSeconds)
+        var scheduleDay = taskDate
+        var scheduledStart: Date
+        while true {
+            let previousTaskEnd = tasks
+                .filter { calendar.isDate($0.dueDate, inSameDayAs: scheduleDay) && $0.hasSpecificTime != false }
+                .map { TaskScheduleDefaults.endDate(start: $0.dueDate, duration: $0.calendarDurationSeconds ?? TaskScheduleDefaults.durationSeconds, calendar: calendar) }
+                .max()
+            scheduledStart = TaskScheduleDefaults.startDate(on: scheduleDay, after: previousTaskEnd, calendar: calendar)
+            if previousTaskEnd == nil || calendar.isDate(scheduledStart, inSameDayAs: scheduleDay) { break }
+            scheduleDay = scheduledStart
+            if !tasks.contains(where: { calendar.isDate($0.dueDate, inSameDayAs: scheduleDay) && $0.hasSpecificTime != false }) { break }
         }
         tasks.append(TodoItem(
             title: clean,
-            dueDate: TaskScheduleDefaults.startDate(on: taskDate, after: previousTaskEnd),
+            dueDate: scheduledStart,
             hasSpecificTime: true,
             calendarDurationSeconds: TaskScheduleDefaults.durationSeconds,
             localUpdatedAt: Date()
         ))
+        if !calendar.isDate(scheduledStart, inSameDayAs: taskDate) { selectedDate = calendar.startOfDay(for: scheduledStart) }
         save()
     }
 

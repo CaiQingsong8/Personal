@@ -962,7 +962,7 @@ struct TaskRow: View {
                         .lineLimit(2)
                 }
                 if task.hasSpecificTime ?? false {
-                    Text("\(Self.timeFormatter.string(from: task.dueDate)) · \(Self.durationText(task.calendarDurationSeconds ?? 3600))")
+                    Text(Self.scheduleText(task))
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(Color.accentColor)
                 }
@@ -1027,6 +1027,21 @@ struct TaskRow: View {
         formatter.dateFormat = "HH:mm"
         return formatter
     }()
+
+    private static func scheduleText(_ task: TodoItem) -> String {
+        let duration = task.calendarDurationSeconds ?? TaskScheduleDefaults.durationSeconds
+        let end = TaskScheduleDefaults.endDate(start: task.dueDate, duration: duration)
+        let endText: String
+        if Calendar.current.isDate(end, inSameDayAs: task.dueDate) {
+            endText = timeFormatter.string(from: end)
+        } else {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "zh_CN")
+            formatter.dateFormat = "M月d日 HH:mm"
+            endText = formatter.string(from: end)
+        }
+        return "\(timeFormatter.string(from: task.dueDate))–\(endText) · \(durationText(duration))"
+    }
 
     private static func durationText(_ seconds: TimeInterval) -> String {
         let minutes = max(30, Int(seconds / 60))

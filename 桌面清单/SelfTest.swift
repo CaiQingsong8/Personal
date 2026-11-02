@@ -25,7 +25,8 @@ struct DeskFlowSelfTest {
         guard var task = store.tasks.first else { fatalError("task creation failed") }
         store.addTask(title: "验证连续任务", dueDate: task.dueDate.startOfDay)
         guard let chainedTask = store.tasks.last else { fatalError("second task creation failed") }
-        precondition(chainedTask.dueDate == task.dueDate.addingTimeInterval(TaskScheduleDefaults.durationSeconds))
+        let firstEnd = TaskScheduleDefaults.endDate(start: task.dueDate, duration: TaskScheduleDefaults.durationSeconds)
+        precondition(chainedTask.dueDate == TaskScheduleDefaults.nextStart(after: firstEnd))
         store.addReminderItem(title: "验证独立事项", dueDate: task.dueDate)
         precondition(store.reminderItems.count == 1)
         precondition(store.tasks.count == 2)
@@ -86,6 +87,22 @@ struct DeskFlowSelfTest {
         let persistedDeletion = try decoder.decode(PersistedData.self, from: Data(contentsOf: store.dataFile))
         precondition(persistedDeletion.pendingReminderDeletions == [deletion])
         precondition(persistedDeletion.reminderItems.map(\.id) == [retained.id])
+
+        let calendar = Calendar.current
+        let day = calendar.date(from: DateComponents(year: 2026, month: 10, day: 22))!
+        let ten = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: day)!
+        let fifteen = calendar.date(bySettingHour: 15, minute: 0, second: 0, of: day)!
+        store.applyTasks([TodoItem(title: "午间排期", dueDate: ten, hasSpecificTime: true, calendarDurationSeconds: 3 * 3600)])
+        store.addTask(title: "午后任务", dueDate: day)
+        precondition(store.tasks.last?.dueDate == fifteen)
+        let seventeen = calendar.date(bySettingHour: 17, minute: 0, second: 0, of: day)!
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: day)!
+        let nine = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow)!
+        store.applyTasks([TodoItem(title: "晚间排期", dueDate: seventeen, hasSpecificTime: true, calendarDurationSeconds: 2 * 3600)])
+        store.addTask(title: "次日任务", dueDate: day)
+        precondition(store.tasks.last?.dueDate == nine && calendar.isDate(store.selectedDate, inSameDayAs: tomorrow))
+        store.addTask(title: "次日连续任务", dueDate: day)
+        precondition(store.tasks.last?.dueDate == nine.addingTimeInterval(2 * 3600))
 
         print("SELF_TEST_OK tasks=\(persisted.tasks.count) reminders=\(persisted.reminderItems.count) focusRecords=\(persisted.focusRecords.count) data=\(store.dataFile.path)")
     }

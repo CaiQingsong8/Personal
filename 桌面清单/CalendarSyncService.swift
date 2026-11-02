@@ -798,8 +798,9 @@ final class CalendarSyncService: ObservableObject {
         if task.hasSpecificTime ?? true {
             event.isAllDay = false
             event.startDate = task.dueDate
-            event.endDate = task.dueDate.addingTimeInterval(
-                max(60, task.calendarDurationSeconds ?? TaskScheduleDefaults.durationSeconds)
+            event.endDate = TaskScheduleDefaults.endDate(
+                start: task.dueDate,
+                duration: max(60, task.calendarDurationSeconds ?? TaskScheduleDefaults.durationSeconds)
             )
         } else {
             event.isAllDay = true

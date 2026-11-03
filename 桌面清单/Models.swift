@@ -422,6 +422,27 @@ extension Date {
 enum TaskScheduleDefaults {
     static let durationSeconds: TimeInterval = 2 * 60 * 60
 
+    static func outsideLunch(_ date: Date, calendar: Calendar = .current) -> Date {
+        let day = calendar.startOfDay(for: date)
+        guard let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day),
+              let afternoon = calendar.date(bySettingHour: 14, minute: 0, second: 0, of: day) else { return date }
+        return date >= noon && date < afternoon ? afternoon : date
+    }
+
+    static func normalizeUpcomingTasks(_ tasks: inout [TodoItem], now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        var changed = false
+        let today = calendar.startOfDay(for: now)
+        for index in tasks.indices where !tasks[index].isCompleted && tasks[index].hasSpecificTime == true && tasks[index].dueDate >= today {
+            let start = outsideLunch(tasks[index].dueDate, calendar: calendar)
+            if start != tasks[index].dueDate {
+                tasks[index].dueDate = start
+                tasks[index].localUpdatedAt = now
+                changed = true
+            }
+        }
+        return changed
+    }
+
     static func endDate(start: Date, duration: TimeInterval, calendar: Calendar = .current) -> Date {
         var cursor = start
         var remaining = max(0, duration)
@@ -455,14 +476,11 @@ enum TaskScheduleDefaults {
 
     static func nextStart(after end: Date, calendar: Calendar = .current) -> Date {
         let day = calendar.startOfDay(for: end)
-        guard let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day),
-              let afternoon = calendar.date(bySettingHour: 14, minute: 0, second: 0, of: day),
-              let cutoff = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: day) else { return end }
+        guard let cutoff = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: day) else { return end }
         if end > cutoff,
            let tomorrow = calendar.date(byAdding: .day, value: 1, to: day),
            let morning = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow) { return morning }
-        if end >= noon && end < afternoon { return afternoon }
-        return end
+        return outsideLunch(end, calendar: calendar)
     }
 
     static func startDate(on date: Date, now: Date = Date(), calendar: Calendar = .current) -> Date {
@@ -485,9 +503,7 @@ enum TaskScheduleDefaults {
     ) -> Date {
         if let previousTaskEnd { return nextStart(after: previousTaskEnd, calendar: calendar) }
         let start = startDate(on: date, now: now, calendar: calendar)
-        let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: start) ?? start
-        let afternoon = calendar.date(bySettingHour: 14, minute: 0, second: 0, of: start) ?? start
-        return start >= noon && start < afternoon ? afternoon : start
+        return outsideLunch(start, calendar: calendar)
     }
 }
 

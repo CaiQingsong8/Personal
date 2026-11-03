@@ -121,6 +121,9 @@ final class AppStore: ObservableObject {
     func updateTask(_ task: TodoItem) {
         guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
         var updated = task
+        if updated.hasSpecificTime == true {
+            updated.dueDate = TaskScheduleDefaults.outsideLunch(updated.dueDate)
+        }
         updated.localUpdatedAt = Date()
         tasks[index] = updated
         save()
@@ -431,6 +434,7 @@ final class AppStore: ObservableObject {
             let data = try Data(contentsOf: dataFile)
             let decoded = try decoder.decode(PersistedData.self, from: data)
             tasks = decoded.tasks
+            let correctedLunchStarts = TaskScheduleDefaults.normalizeUpcomingTasks(&tasks)
             calendarSchedules = decoded.calendarSchedules
             reminderItems = decoded.reminderItems
             focusRecords = decoded.focusRecords
@@ -444,7 +448,7 @@ final class AppStore: ObservableObject {
                 sessionStartedAt = snapshot.startedAt
                 timerTaskID = snapshot.taskID
             }
-            if decoded.didMigrateLegacyRecords { persist() }
+            if decoded.didMigrateLegacyRecords || correctedLunchStarts { persist() }
         } catch {
             if (error as NSError).code != NSFileReadNoSuchFileError {
                 persistenceBlockedByDecodeFailure = true

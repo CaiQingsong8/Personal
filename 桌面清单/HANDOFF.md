@@ -1,5 +1,12 @@
 # 桌面清单项目交接
 
+## 2026-11-03：1.6.6 任务午休开始时间
+
+- 任务新建与编辑均将 12:00–14:00 内的开始时间调整至 14:00；午休前开始且跨午休的任务保留原开始时间。升级后仅对当天及未来尚未完成、指定时间的本地任务修正午休内开始时间，过去、已完成和全天任务以及提醒事项不变。
+- 用户真实数据已在安装前备份至 `~/Library/Application Support/DeskFlow/data-before-1.6.6-lunch-fix.json`；启动后核对任务 ID 与数量一致，恰有一条开始时间由当日 12:00 调整为 14:00，时长保持 6 小时，提醒事项数量未变。
+- `CalendarSemanticsTests`、临时目录自测与 `TaskLunchMigrationTests` 通过；macOS 13 Universal 2 构建及安装包签名验证通过。当前 Mac 已安装并启动 1.6.6 build 24；真实 Mac 日历同步及 macOS 13 实机待验证。
+- 安装包 SHA-256：`2a70b1c612f643a687ec3d39ed145e9d34f879095c77042453dff3bd3562a73b`。
+
 ## 2026-11-02：1.6.5 任务午休与次日排期
 
 - 已安装并启动 `/Applications/桌面清单.app` 1.6.5 build 23；GitHub Release `v1.6.5` 已发布，标签指向功能提交 `4c4db65`，附件校验值与本机一致。发布页：`https://github.com/CaiQingsong8/Personal/releases/tag/v1.6.5`。

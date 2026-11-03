@@ -55,6 +55,26 @@ struct CalendarSemanticsTests {
         precondition(TaskScheduleDefaults.nextStart(after: noon, calendar: calendar) == afternoon)
         precondition(TaskScheduleDefaults.nextStart(after: eighteen, calendar: calendar) == eighteen)
         precondition(TaskScheduleDefaults.endDate(start: noon, duration: 3600, calendar: calendar) == fifteen)
+        let elevenThirty = makeDate(2026, 10, 22, hour: 11, minute: 30, second: 0, calendar: calendar)
+        let thirteen = makeDate(2026, 10, 22, hour: 13, minute: 0, second: 0, calendar: calendar)
+        let twoPM = makeDate(2026, 10, 22, hour: 14, minute: 0, second: 0, calendar: calendar)
+        precondition(TaskScheduleDefaults.outsideLunch(noon, calendar: calendar) == twoPM)
+        precondition(TaskScheduleDefaults.outsideLunch(thirteen, calendar: calendar) == twoPM)
+        precondition(TaskScheduleDefaults.outsideLunch(elevenThirty, calendar: calendar) == elevenThirty)
+        precondition(TaskScheduleDefaults.outsideLunch(twoPM, calendar: calendar) == twoPM)
+        precondition(TaskScheduleDefaults.endDate(start: elevenThirty, duration: 3600, calendar: calendar) == makeDate(2026, 10, 22, hour: 14, minute: 30, second: 0, calendar: calendar))
+        let yesterdayNoon = makeDate(2026, 10, 21, hour: 12, minute: 0, second: 0, calendar: calendar)
+        var upcoming = [
+            TodoItem(title: "今日", dueDate: noon, hasSpecificTime: true),
+            TodoItem(title: "已完成", dueDate: noon, isCompleted: true, hasSpecificTime: true),
+            TodoItem(title: "过去", dueDate: yesterdayNoon, hasSpecificTime: true),
+            TodoItem(title: "跨午休", dueDate: elevenThirty, hasSpecificTime: true),
+            TodoItem(title: "全天", dueDate: noon, hasSpecificTime: false)
+        ]
+        precondition(TaskScheduleDefaults.normalizeUpcomingTasks(&upcoming, now: ten, calendar: calendar))
+        precondition(upcoming[0].dueDate == twoPM && upcoming[1].dueDate == noon && upcoming[2].dueDate == yesterdayNoon)
+        precondition(upcoming[3].dueDate == elevenThirty && upcoming[4].dueDate == noon)
+        precondition(!TaskScheduleDefaults.normalizeUpcomingTasks(&upcoming, now: ten, calendar: calendar))
 
         let reminderCreatedAt = makeDate(2026, 10, 22, hour: 17, minute: 45, second: 0, calendar: calendar)
         let reminderWithoutDueDate = ReminderDateSemantics.dueDate(

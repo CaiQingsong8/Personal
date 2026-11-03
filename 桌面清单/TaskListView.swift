@@ -1118,6 +1118,10 @@ struct TaskEditorView: View {
 
             if hasSpecificTime {
                 DatePicker("时间", selection: $draft.dueDate, displayedComponents: [.hourAndMinute])
+                    .onChange(of: draft.dueDate) { value in
+                        let corrected = TaskScheduleDefaults.outsideLunch(value)
+                        if corrected != value { draft.dueDate = corrected }
+                    }
 
                 Stepper(value: $durationMinutes, in: 30...720, step: 30) {
                     HStack {

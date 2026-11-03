@@ -4,6 +4,10 @@ import SwiftUI
 struct TaskListView: View {
     @EnvironmentObject private var store: AppStore
     @State private var newTaskTitle = ""
+    @State private var taskTimeEnabled = false
+    @State private var taskStartTime = Date()
+    @State private var taskDuration = 120
+    @State private var showTaskTime = false
     @State private var editingTask: TodoItem?
     @State private var isSelecting = false
     @State private var selectedTaskIDs = Set<UUID>()
@@ -257,6 +261,20 @@ struct TaskListView: View {
             TextField("添加任务…", text: $newTaskTitle)
                 .textFieldStyle(.plain)
                 .onSubmit(addTask)
+            Button { showTaskTime.toggle() } label: {
+                Image(systemName: taskTimeEnabled ? "clock.fill" : "clock")
+            }
+            .buttonStyle(.borderless)
+            .help("设置开始时间和时长")
+            .popover(isPresented: $showTaskTime) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle("手动选择开始时间", isOn: $taskTimeEnabled)
+                    if taskTimeEnabled { DatePicker("开始时间", selection: $taskStartTime, displayedComponents: .hourAndMinute) }
+                    Stepper("时长：\(taskDuration) 分钟", value: $taskDuration, in: 30...720, step: 30)
+                    Text("自动排期跳过午休；手动选择午休时间会调整到 14:00。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }.padding().frame(width: 290)
+            }
             Button("添加", action: addTask)
                 .buttonStyle(.borderless)
                 .foregroundStyle(Color.accentColor)
@@ -288,8 +306,12 @@ struct TaskListView: View {
 
     private func addTask() {
         guard !newTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        store.addTask(title: newTaskTitle, dueDate: store.selectedDate)
+        let components = Calendar.current.dateComponents([.hour, .minute], from: taskStartTime)
+        let start = Calendar.current.date(bySettingHour: components.hour ?? 9, minute: components.minute ?? 0, second: 0, of: store.selectedDate)
+        store.addTask(title: newTaskTitle, dueDate: store.selectedDate, explicitStart: taskTimeEnabled ? start : nil, duration: TimeInterval(taskDuration * 60))
         newTaskTitle = ""
+        taskTimeEnabled = false
+        taskDuration = 120
     }
 
     private static let titleFormatter: DateFormatter = {
@@ -369,6 +391,9 @@ private struct ReminderTodayView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var reminderSync: ReminderSyncService
     @State private var newTitle = ""
+    @State private var reminderTimeEnabled = false
+    @State private var reminderTime = Date()
+    @State private var showReminderTime = false
     @State private var editingItem: ReminderItem?
     @State private var isSelecting = false
     @State private var selectedItemIDs = Set<UUID>()
@@ -443,6 +468,19 @@ private struct ReminderTodayView: View {
                 TextField("添加事项…", text: $newTitle)
                     .textFieldStyle(.plain)
                     .onSubmit(addItem)
+                Button { showReminderTime.toggle() } label: {
+                    Image(systemName: reminderTimeEnabled ? "clock.fill" : "clock")
+                }
+                .buttonStyle(.borderless)
+                .help("设置提醒时间")
+                .popover(isPresented: $showReminderTime) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle("指定提醒时间", isOn: $reminderTimeEnabled)
+                        if reminderTimeEnabled { DatePicker("时间", selection: $reminderTime, displayedComponents: .hourAndMinute) }
+                        Text("未指定时间时按全天事项显示。")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }.padding().frame(width: 260)
+                }
                 Button("添加", action: addItem)
                     .buttonStyle(.borderless)
                     .disabled(newTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -588,8 +626,11 @@ private struct ReminderTodayView: View {
 
     private func addItem() {
         guard !newTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        store.addReminderItem(title: newTitle, dueDate: store.selectedDate)
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: reminderTime)
+        let date = Calendar.current.date(bySettingHour: parts.hour ?? 9, minute: parts.minute ?? 0, second: 0, of: store.selectedDate) ?? store.selectedDate
+        store.addReminderItem(title: newTitle, dueDate: date, hasSpecificTime: reminderTimeEnabled)
         newTitle = ""
+        reminderTimeEnabled = false
     }
 
     private static let dateFormatter: DateFormatter = {

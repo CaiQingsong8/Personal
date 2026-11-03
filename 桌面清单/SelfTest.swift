@@ -140,6 +140,18 @@ struct DeskFlowSelfTest {
         let afterInvalid = try Data(contentsOf: store.dataFile)
         precondition(afterInvalid == beforeInvalid)
 
+        let separateTask = TodoItem(title: "分类筛选任务", dueDate: ten)
+        let separateReminder = ReminderItem(title: "分类筛选事项", dueDate: fifteen, hasSpecificTime: true)
+        let both = try backupEncoder.encode(PersistedData(tasks: [separateTask], reminderItems: [separateReminder]))
+        let tasksOnly = try store.importChecklistData(both, selection: .tasks)
+        precondition(tasksOnly.tasks == 1 && tasksOnly.reminders == 0 && !store.reminderItems.contains(where: { $0.id == separateReminder.id }))
+        let remindersOnly = try store.importChecklistData(both, selection: .reminders)
+        precondition(remindersOnly.tasks == 0 && remindersOnly.reminders == 1)
+        store.addReminderItem(title: "定时事项", dueDate: fifteen, hasSpecificTime: true)
+        precondition(store.reminderItems.last?.dueDate == fifteen && store.reminderItems.last?.hasSpecificTime == true)
+        store.addTask(title: "自选开始", dueDate: day, explicitStart: ten, duration: 1800)
+        precondition(store.tasks.last?.dueDate == ten && store.tasks.last?.calendarDurationSeconds == 1800)
+
         print("SELF_TEST_OK tasks=\(persisted.tasks.count) reminders=\(persisted.reminderItems.count) focusRecords=\(persisted.focusRecords.count) data=\(store.dataFile.path)")
     }
 }

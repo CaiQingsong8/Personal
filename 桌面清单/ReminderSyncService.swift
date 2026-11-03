@@ -455,6 +455,9 @@ final class ReminderSyncService: ObservableObject {
                 from: item.dueDate,
                 hasSpecificTime: item.hasSpecificTime ?? false
             )
+            if item.hasSpecificTime == true && (reminder.alarms?.isEmpty ?? true) {
+                reminder.addAlarm(EKAlarm(relativeOffset: 0))
+            }
             reminder.isCompleted = item.isCompleted
             reminder.completionDate = item.isCompleted ? (item.completedAt ?? now) : nil
             if reminder.url == nil || isDeskFlowReminderURL(reminder.url) {

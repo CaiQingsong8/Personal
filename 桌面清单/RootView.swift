@@ -145,17 +145,26 @@ struct DataMenuView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Button("导出完整备份（JSON）") { store.exportJSON() }
-                .buttonStyle(.borderedProminent)
-            HStack {
-                Button("导出任务（JSON）") { store.exportChecklistJSON(.tasks) }
-                Button("导出事项（JSON）") { store.exportChecklistJSON(.reminders) }
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("导出").frame(width: 36, alignment: .leading)
+                    Button("全部") { store.exportJSON() }
+                    Button("任务") { store.exportChecklistJSON(.tasks) }
+                    Button("事项") { store.exportChecklistJSON(.reminders) }
+                }
+                HStack {
+                    Text("导入").frame(width: 36, alignment: .leading)
+                    Button("全部") { store.importChecklistJSON() }
+                    Button("任务") { store.importChecklistJSON(.tasks) }
+                    Button("事项") { store.importChecklistJSON(.reminders) }
+                }
             }
             .buttonStyle(.bordered)
-            Button("导入任务或事项（JSON）") { store.importChecklistJSON() }
-                .buttonStyle(.bordered)
+            .font(.callout)
+            Text("JSON 备份仅导入任务和事项，不会自动同步到 Mac。")
+                .font(.caption2).foregroundStyle(.secondary)
             Button("导出任务表（CSV）") { store.exportCSV() }
-                .buttonStyle(.bordered)
+                .buttonStyle(.link)
             Button("打开数据目录") {
                 try? FileManager.default.createDirectory(at: store.dataDirectory, withIntermediateDirectories: true)
                 NSWorkspace.shared.open(store.dataDirectory)

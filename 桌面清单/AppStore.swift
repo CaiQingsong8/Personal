@@ -90,11 +90,16 @@ final class AppStore: ObservableObject {
             }
     }
 
-    func addTask(title: String, dueDate: Date? = nil) {
+    func addTask(title: String, dueDate: Date? = nil, explicitStart: Date? = nil, duration: TimeInterval = TaskScheduleDefaults.durationSeconds) {
         let clean = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
         let taskDate = dueDate ?? selectedDate
         let calendar = Calendar.current
+        if let explicitStart {
+            tasks.append(TodoItem(title: clean, dueDate: TaskScheduleDefaults.outsideLunch(explicitStart), hasSpecificTime: true, calendarDurationSeconds: duration, localUpdatedAt: Date()))
+            save()
+            return
+        }
         var scheduleDay = taskDate
         var scheduledStart: Date
         while true {
@@ -111,7 +116,7 @@ final class AppStore: ObservableObject {
             title: clean,
             dueDate: scheduledStart,
             hasSpecificTime: true,
-            calendarDurationSeconds: TaskScheduleDefaults.durationSeconds,
+            calendarDurationSeconds: duration,
             localUpdatedAt: Date()
         ))
         if !calendar.isDate(scheduledStart, inSameDayAs: taskDate) { selectedDate = calendar.startOfDay(for: scheduledStart) }
@@ -137,11 +142,13 @@ final class AppStore: ObservableObject {
         save()
     }
 
-    func addReminderItem(title: String, dueDate: Date? = nil) {
+    func addReminderItem(title: String, dueDate: Date? = nil, hasSpecificTime: Bool = false) {
         let clean = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
         let date = dueDate ?? selectedDate
-        reminderItems.append(ReminderItem(title: clean, dueDate: date.startOfDay, createdAt: Date()))
+        let item = ReminderItem(title: clean, dueDate: hasSpecificTime ? date : date.startOfDay, createdAt: Date(), hasSpecificTime: hasSpecificTime)
+        reminderItems.append(item)
+        updateReminderNotification(item)
         save()
     }
 
@@ -150,6 +157,7 @@ final class AppStore: ObservableObject {
         var updated = item
         updated.localUpdatedAt = Date()
         reminderItems[index] = updated
+        updateReminderNotification(updated)
         save()
     }
 
@@ -158,6 +166,7 @@ final class AppStore: ObservableObject {
         reminderItems[index].isCompleted.toggle()
         reminderItems[index].completedAt = reminderItems[index].isCompleted ? Date() : nil
         reminderItems[index].localUpdatedAt = Date()
+        updateReminderNotification(reminderItems[index])
         save()
     }
 
@@ -166,6 +175,7 @@ final class AppStore: ObservableObject {
     func deleteReminderItems(ids: Set<UUID>) {
         guard !ids.isEmpty else { return }
         for item in reminderItems where ids.contains(item.id) {
+            removeReminderNotification(item.id)
             if item.reminderCalendarItemIdentifier != nil || item.reminderCalendarItemExternalIdentifier != nil || item.reminderListIdentifier != nil,
                !pendingReminderDeletions.contains(where: { $0.taskID == item.id }) {
                 pendingReminderDeletions.append(PendingReminderDeletion(
@@ -251,8 +261,29 @@ final class AppStore: ObservableObject {
     }
 
     func applyReminderItems(_ items: [ReminderItem]) {
+        for item in reminderItems { removeReminderNotification(item.id) }
         reminderItems = items
+        for item in items { updateReminderNotification(item) }
         save()
+    }
+
+    private func removeReminderNotification(_ id: UUID) {
+        guard Bundle.main.bundleIdentifier != nil else { return }
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["deskflow-reminder-\(id.uuidString)"])
+    }
+
+    private func updateReminderNotification(_ item: ReminderItem) {
+        guard Bundle.main.bundleIdentifier != nil else { return }
+        removeReminderNotification(item.id)
+        guard item.hasSpecificTime == true, !item.isCompleted, item.dueDate > Date(),
+              item.reminderCalendarItemIdentifier == nil else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "事项提醒"
+        content.body = item.title
+        content.sound = .default
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: item.dueDate)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "deskflow-reminder-\(item.id.uuidString)", content: content, trigger: trigger))
     }
 
     func selectTaskForTimer(_ task: TodoItem) {
@@ -353,14 +384,14 @@ final class AppStore: ObservableObject {
         catch { showError("导出失败", detail: error.localizedDescription) }
     }
 
-    func importChecklistJSON() {
+    func importChecklistJSON(_ selection: ChecklistBackupKind? = nil) {
         let panel = NSOpenPanel()
         panel.title = "导入桌面清单 JSON"
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
-            let result = try importChecklistData(Data(contentsOf: url))
+            let result = try importChecklistData(Data(contentsOf: url), selection: selection)
             let alert = NSAlert()
             alert.messageText = "导入完成"
             alert.informativeText = "新增任务 \(result.tasks) 项、事项 \(result.reminders) 项；已存在或待删除 \(result.skipped) 项。Mac 日历和提醒事项可在需要时手动同步。"
@@ -369,13 +400,15 @@ final class AppStore: ObservableObject {
     }
 
     @discardableResult
-    func importChecklistData(_ data: Data) throws -> (tasks: Int, reminders: Int, skipped: Int) {
+    func importChecklistData(_ data: Data, selection: ChecklistBackupKind? = nil) throws -> (tasks: Int, reminders: Int, skipped: Int) {
         guard !persistenceBlockedByDecodeFailure else { throw CocoaError(.fileWriteUnknown) }
         let backup = try ChecklistBackupReader.read(data)
         var taskIDs = Set(tasks.map(\.id)).union(pendingCalendarDeletions.filter { $0.kind == .task }.map(\.taskID))
         var reminderIDs = Set(reminderItems.map(\.id)).union(pendingReminderDeletions.map(\.taskID))
-        let newTasks = backup.tasks.filter { taskIDs.insert($0.id).inserted }
-        let newReminders = backup.reminders.filter { reminderIDs.insert($0.id).inserted }
+        let selectedTasks = selection == .reminders ? [] : backup.tasks
+        let selectedReminders = selection == .tasks ? [] : backup.reminders
+        let newTasks = selectedTasks.filter { taskIDs.insert($0.id).inserted }
+        let newReminders = selectedReminders.filter { reminderIDs.insert($0.id).inserted }
         var snapshot = currentPersistedData()
         snapshot.tasks += newTasks
         snapshot.reminderItems += newReminders
@@ -383,7 +416,8 @@ final class AppStore: ObservableObject {
         try encoder.encode(snapshot).write(to: dataFile, options: .atomic)
         tasks = snapshot.tasks
         reminderItems = snapshot.reminderItems
-        return (newTasks.count, newReminders.count, backup.tasks.count + backup.reminders.count - newTasks.count - newReminders.count)
+        for item in newReminders { updateReminderNotification(item) }
+        return (newTasks.count, newReminders.count, selectedTasks.count + selectedReminders.count - newTasks.count - newReminders.count)
     }
 
     func exportCSV() {

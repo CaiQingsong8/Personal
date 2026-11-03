@@ -88,6 +88,9 @@ struct DeskFlowApp: App {
             CommandGroup(replacing: .newItem) { }
             CommandMenu("数据") {
                 Button("导出备份（JSON）") { store.exportJSON() }
+                Button("导出任务（JSON）") { store.exportChecklistJSON(.tasks) }
+                Button("导出事项（JSON）") { store.exportChecklistJSON(.reminders) }
+                Button("导入任务或事项（JSON）") { store.importChecklistJSON() }
                 Button("导出任务（CSV）") { store.exportCSV() }
                 Divider()
                 Button("打开数据目录") {

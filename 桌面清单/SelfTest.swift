@@ -104,6 +104,42 @@ struct DeskFlowSelfTest {
         store.addTask(title: "次日连续任务", dueDate: day)
         precondition(store.tasks.last?.dueDate == nine.addingTimeInterval(2 * 3600))
 
+        let backupEncoder = JSONEncoder()
+        backupEncoder.dateEncodingStrategy = .iso8601
+        let importedTask = TodoItem(title: "导入任务", dueDate: ten, hasSpecificTime: true)
+        let importedReminder = ReminderItem(title: "导入事项", dueDate: day)
+        let taskBackup = try backupEncoder.encode(ChecklistBackup(kind: .tasks, tasks: [importedTask], reminderItems: nil))
+        let reminderBackup = try backupEncoder.encode(ChecklistBackup(kind: .reminders, tasks: nil, reminderItems: [importedReminder]))
+        let firstImport = try store.importChecklistData(taskBackup)
+        precondition(firstImport.tasks == 1 && firstImport.reminders == 0)
+        let repeatImport = try store.importChecklistData(taskBackup)
+        precondition(repeatImport.tasks == 0 && repeatImport.skipped == 1)
+        let reminderImport = try store.importChecklistData(reminderBackup)
+        precondition(reminderImport.tasks == 0 && reminderImport.reminders == 1)
+        let oldBackup = try backupEncoder.encode(PersistedData(tasks: [importedTask], reminderItems: [importedReminder]))
+        let legacyImport = try store.importChecklistData(oldBackup)
+        precondition(legacyImport.tasks == 0 && legacyImport.reminders == 0 && legacyImport.skipped == 2)
+        let oldTask = TodoItem(title: "旧完整备份任务", dueDate: ten, hasSpecificTime: true, calendarEventIdentifier: "old-event-id")
+        let oldReminder = ReminderItem(title: "旧完整备份事项", dueDate: day, reminderCalendarItemIdentifier: "old-reminder-id")
+        let oldNewBackup = try backupEncoder.encode(PersistedData(tasks: [oldTask], reminderItems: [oldReminder]))
+        let oldNewImport = try store.importChecklistData(oldNewBackup)
+        precondition(oldNewImport.tasks == 1 && oldNewImport.reminders == 1)
+        precondition(store.tasks.first(where: { $0.id == oldTask.id })?.calendarEventIdentifier == "old-event-id")
+        precondition(store.reminderItems.first(where: { $0.id == oldReminder.id })?.reminderCalendarItemIdentifier == "old-reminder-id")
+        let deletedBackup = try backupEncoder.encode(PersistedData(tasks: [updated], reminderItems: [linked]))
+        let deletedImport = try store.importChecklistData(deletedBackup)
+        precondition(deletedImport.tasks == 0 && deletedImport.reminders == 0 && deletedImport.skipped == 2)
+        let savedAfterImport = try decoder.decode(PersistedData.self, from: Data(contentsOf: store.dataFile))
+        precondition(savedAfterImport.tasks.contains(where: { $0.id == importedTask.id }))
+        precondition(savedAfterImport.reminderItems.contains(where: { $0.id == importedReminder.id }))
+        let beforeInvalid = try Data(contentsOf: store.dataFile)
+        do {
+            _ = try store.importChecklistData(Data("{}".utf8))
+            fatalError("invalid JSON backup accepted")
+        } catch { }
+        let afterInvalid = try Data(contentsOf: store.dataFile)
+        precondition(afterInvalid == beforeInvalid)
+
         print("SELF_TEST_OK tasks=\(persisted.tasks.count) reminders=\(persisted.reminderItems.count) focusRecords=\(persisted.focusRecords.count) data=\(store.dataFile.path)")
     }
 }

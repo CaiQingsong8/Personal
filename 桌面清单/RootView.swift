@@ -147,6 +147,13 @@ struct DataMenuView: View {
 
             Button("导出完整备份（JSON）") { store.exportJSON() }
                 .buttonStyle(.borderedProminent)
+            HStack {
+                Button("导出任务（JSON）") { store.exportChecklistJSON(.tasks) }
+                Button("导出事项（JSON）") { store.exportChecklistJSON(.reminders) }
+            }
+            .buttonStyle(.bordered)
+            Button("导入任务或事项（JSON）") { store.importChecklistJSON() }
+                .buttonStyle(.bordered)
             Button("导出任务表（CSV）") { store.exportCSV() }
                 .buttonStyle(.bordered)
             Button("打开数据目录") {

@@ -323,6 +323,47 @@ struct TimerSnapshot: Codable {
     var taskID: UUID?
 }
 
+enum ChecklistBackupKind: String, Codable {
+    case tasks, reminders
+}
+
+struct ChecklistBackup: Codable {
+    var format = "DeskFlowChecklist"
+    var version = 1
+    var kind: ChecklistBackupKind
+    var tasks: [TodoItem]?
+    var reminderItems: [ReminderItem]?
+}
+
+enum ChecklistBackupReader {
+    enum BackupError: LocalizedError {
+        case invalidFormat
+        var errorDescription: String? { "文件不是支持的桌面清单 JSON 备份，或备份版本不受支持。" }
+    }
+
+    static func read(_ data: Data) throws -> (tasks: [TodoItem], reminders: [ReminderItem]) {
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw BackupError.invalidFormat }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        if root["format"] != nil {
+            guard root["format"] as? String == "DeskFlowChecklist", root["version"] as? Int == 1 else { throw BackupError.invalidFormat }
+            let backup = try decoder.decode(ChecklistBackup.self, from: data)
+            switch backup.kind {
+            case .tasks:
+                guard let tasks = backup.tasks, backup.reminderItems == nil else { throw BackupError.invalidFormat }
+                return (tasks, [])
+            case .reminders:
+                guard let reminders = backup.reminderItems, backup.tasks == nil else { throw BackupError.invalidFormat }
+                return ([], reminders)
+            }
+        }
+        guard root["tasks"] is [Any] || root["reminderItems"] is [Any],
+              (root["schemaVersion"] == nil || (root["schemaVersion"] as? Int).map({ (1...2).contains($0) }) == true) else { throw BackupError.invalidFormat }
+        let backup = try decoder.decode(PersistedData.self, from: data)
+        return (backup.tasks, backup.reminderItems)
+    }
+}
+
 struct PersistedData: Codable {
     var schemaVersion: Int = 2
     var tasks: [TodoItem] = []

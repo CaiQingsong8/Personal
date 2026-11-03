@@ -339,6 +339,53 @@ final class AppStore: ObservableObject {
         }
     }
 
+    func exportChecklistJSON(_ kind: ChecklistBackupKind) {
+        let panel = NSSavePanel()
+        let label = kind == .tasks ? "任务" : "事项"
+        panel.title = "导出\(label)"
+        panel.nameFieldStringValue = "桌面清单-\(label)-\(Self.fileDateFormatter.string(from: Date())).json"
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let backup = ChecklistBackup(kind: kind,
+                                     tasks: kind == .tasks ? tasks : nil,
+                                     reminderItems: kind == .reminders ? reminderItems : nil)
+        do { try encoder.encode(backup).write(to: url, options: .atomic) }
+        catch { showError("导出失败", detail: error.localizedDescription) }
+    }
+
+    func importChecklistJSON() {
+        let panel = NSOpenPanel()
+        panel.title = "导入桌面清单 JSON"
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let result = try importChecklistData(Data(contentsOf: url))
+            let alert = NSAlert()
+            alert.messageText = "导入完成"
+            alert.informativeText = "新增任务 \(result.tasks) 项、事项 \(result.reminders) 项；已存在或待删除 \(result.skipped) 项。Mac 日历和提醒事项可在需要时手动同步。"
+            alert.runModal()
+        } catch { showError("导入失败", detail: error.localizedDescription) }
+    }
+
+    @discardableResult
+    func importChecklistData(_ data: Data) throws -> (tasks: Int, reminders: Int, skipped: Int) {
+        guard !persistenceBlockedByDecodeFailure else { throw CocoaError(.fileWriteUnknown) }
+        let backup = try ChecklistBackupReader.read(data)
+        var taskIDs = Set(tasks.map(\.id)).union(pendingCalendarDeletions.filter { $0.kind == .task }.map(\.taskID))
+        var reminderIDs = Set(reminderItems.map(\.id)).union(pendingReminderDeletions.map(\.taskID))
+        let newTasks = backup.tasks.filter { taskIDs.insert($0.id).inserted }
+        let newReminders = backup.reminders.filter { reminderIDs.insert($0.id).inserted }
+        var snapshot = currentPersistedData()
+        snapshot.tasks += newTasks
+        snapshot.reminderItems += newReminders
+        try FileManager.default.createDirectory(at: dataDirectory, withIntermediateDirectories: true)
+        try encoder.encode(snapshot).write(to: dataFile, options: .atomic)
+        tasks = snapshot.tasks
+        reminderItems = snapshot.reminderItems
+        return (newTasks.count, newReminders.count, backup.tasks.count + backup.reminders.count - newTasks.count - newReminders.count)
+    }
+
     func exportCSV() {
         let panel = NSSavePanel()
         panel.title = "导出本地清单任务"

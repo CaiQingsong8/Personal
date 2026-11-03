@@ -1,5 +1,12 @@
 # 桌面清单项目交接
 
+## 2026-11-03：1.6.7 任务与事项 JSON 备份转移
+
+- 右上角数据菜单及“数据”菜单支持分别导出任务 JSON、事项 JSON，导入分类文件或旧完整备份中的任务和事项。导入只写清单本地数据，不调用 EventKit；按 ID 合并，已存在或待删除的记录跳过。
+- 导入先校验格式并将合并结果原子写盘，写盘成功才更新内存；旧完整备份中的 Mac 日程、专注记录与计时状态不通过该入口导入。原有 ID 和 Mac 关联保留，换设备后的实际系统同步仍需实测。
+- 分类导入、重复导入、删除队列保护、旧完整备份、无效 JSON 及排期回归通过；Universal 2 构建、ZIP 解压和签名检查通过。1.6.7 build 25 已安装并启动；安装前数据备份为 `~/Library/Application Support/DeskFlow/data-before-1.6.7-import.json`，启动前后任务和事项的数量与 ID 一致。
+- 安装包 `build/DeskFlow-1.6.7-macOS13-Universal.zip` SHA-256：`2c3afd40769f9572423300266851ee20f0431b4e30d8d3f33c34470650bc3b68`。未实测 GUI 文件选择、新 Mac 导入和 iCloud 同步。
+
 ## 2026-11-03：1.6.6 任务午休开始时间
 
 - GitHub Release `v1.6.6` 已发布，标签指向功能提交 `35bc49e`；GitHub 附件校验值与本机一致。发布页：`https://github.com/CaiQingsong8/Personal/releases/tag/v1.6.6`。

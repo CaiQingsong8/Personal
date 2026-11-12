@@ -519,10 +519,12 @@ struct DayCell: View {
     }
 
     var body: some View {
-        Button {
-            store.selectedDate = date.startOfDay
-            store.selectedTab = .tasks
-        } label: {
+        ZStack {
+            Button { store.showDay(date, section: .tasks) } label: {
+                Rectangle().fill(Color.primary.opacity(0.001))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("查看\(Calendar.current.component(.day, from: date))日任务")
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 3) {
                     Text("\(Calendar.current.component(.day, from: date))")
@@ -554,7 +556,8 @@ struct DayCell: View {
                     }
 
                     ForEach(reminders.prefix(1)) { reminder in
-                        HStack(spacing: 3) {
+                        Button { store.showDay(date, section: .reminders) } label: {
+                          HStack(spacing: 3) {
                             Image(systemName: "checklist")
                                 .font(.system(size: 7.5, weight: .semibold))
                                 .foregroundStyle(Color.purple)
@@ -562,12 +565,15 @@ struct DayCell: View {
                                 .font(.system(size: 8.5, weight: .medium))
                                 .lineLimit(1)
                                 .foregroundStyle(reminder.isCompleted ? Color.secondary : Color.purple)
+                          }
                         }
+                        .buttonStyle(.plain)
                         .help("\(reminder.listTitle)：\(reminder.title)")
                     }
 
                     ForEach(tasks.prefix(calendarEvents.isEmpty && reminders.isEmpty ? 2 : 1)) { task in
-                        HStack(spacing: 3) {
+                        Button { store.showDay(date, section: .tasks) } label: {
+                          HStack(spacing: 3) {
                             Circle()
                                 .fill(task.isCompleted ? Color.secondary.opacity(0.35) : Color.accentColor)
                                 .frame(width: 4, height: 4)
@@ -575,7 +581,9 @@ struct DayCell: View {
                                 .font(.system(size: 8.5))
                                 .lineLimit(1)
                                 .foregroundStyle(task.isCompleted ? .secondary : .primary)
+                          }
                         }
+                        .buttonStyle(.plain)
                     }
                     let hasOtherLayers = !calendarEvents.isEmpty || !reminders.isEmpty
                     let shownCount = (hasOtherLayers ? min(tasks.count, 1) : min(tasks.count, 2))
@@ -595,11 +603,10 @@ struct DayCell: View {
                 minHeight: 54,
                 alignment: .topLeading
             )
-            .background(isToday ? Color.accentColor.opacity(0.08) : Color.primary.opacity(0.025))
+            .background((isToday ? Color.accentColor.opacity(0.08) : Color.primary.opacity(0.025)).allowsHitTesting(false))
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .opacity(isCurrentMonth ? 1 : 0.45)
         }
-        .buttonStyle(.plain)
     }
 
     private var isToday: Bool { Calendar.current.isDateInToday(date) }

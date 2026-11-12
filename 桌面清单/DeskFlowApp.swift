@@ -51,12 +51,43 @@ final class WindowManager: ObservableObject {
     }
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var rolloverTimer: Timer?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(wokeFromSleep), name: NSWorkspace.didWakeNotification, object: nil)
+        scheduleDailyRollover()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
             WindowManager.shared.configureWindow(placeAtTopLeft: true)
         }
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        Task { @MainActor in
+            AppStore.shared.refreshDayIfNeeded()
+            self.scheduleDailyRollover()
+        }
+    }
+
+    @objc private func wokeFromSleep() {
+        Task { @MainActor in
+            AppStore.shared.refreshDayIfNeeded()
+            self.scheduleDailyRollover()
+        }
+    }
+
+    @MainActor private func scheduleDailyRollover() {
+        rolloverTimer?.invalidate()
+        let timer = Timer(fire: DailyRollover.nextCutoff(after: Date()), interval: 0, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                AppStore.shared.refreshDayIfNeeded()
+                self?.scheduleDailyRollover()
+            }
+        }
+        rolloverTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     func applicationWillTerminate(_ notification: Notification) {

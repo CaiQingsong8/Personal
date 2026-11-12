@@ -450,6 +450,24 @@ enum AppTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum TodaySection: Hashable {
+    case tasks, reminders
+}
+
+enum DailyRollover {
+    static func periodStart(at date: Date, calendar: Calendar = .current) -> Date {
+        let day = calendar.startOfDay(for: date)
+        let cutoff = calendar.date(bySettingHour: 1, minute: 0, second: 0, of: day) ?? day
+        guard date < cutoff else { return cutoff }
+        let previous = calendar.date(byAdding: .day, value: -1, to: day) ?? day
+        return calendar.date(bySettingHour: 1, minute: 0, second: 0, of: previous) ?? previous
+    }
+
+    static func nextCutoff(after date: Date, calendar: Calendar = .current) -> Date {
+        calendar.nextDate(after: date, matching: DateComponents(hour: 1, minute: 0, second: 0), matchingPolicy: .nextTime) ?? date.addingTimeInterval(86400)
+    }
+}
+
 extension Calendar {
     func isDate(_ lhs: Date, inSameDayAs rhs: Date) -> Bool {
         isDate(lhs, equalTo: rhs, toGranularity: .day)

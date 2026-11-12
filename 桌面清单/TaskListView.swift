@@ -12,7 +12,6 @@ struct TaskListView: View {
     @State private var isSelecting = false
     @State private var selectedTaskIDs = Set<UUID>()
     @State private var confirmBatchDelete = false
-    @State private var todaySection = TodaySection.tasks
 
     private var dayTasks: [TodoItem] { store.tasks(on: store.selectedDate) }
     private var recentTasks: [TodoItem] {
@@ -43,7 +42,7 @@ struct TaskListView: View {
                 Text("今日内容")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                Picker("今日内容", selection: $todaySection) {
+                Picker("今日内容", selection: $store.todaySection) {
                     Text("任务").tag(TodaySection.tasks)
                     Text("事项").tag(TodaySection.reminders)
                 }
@@ -55,7 +54,7 @@ struct TaskListView: View {
             .padding(.horizontal, 14)
             .padding(.top, 8)
 
-            if todaySection == .tasks {
+            if store.todaySection == .tasks {
                 if isSelecting {
                     batchHeader
                 } else {
@@ -118,13 +117,13 @@ struct TaskListView: View {
             }
 
             Divider().opacity(0.6)
-            if todaySection == .tasks {
+            if store.todaySection == .tasks {
                 CalendarSyncPanel()
                     .padding(.horizontal, 10)
                 TaskCalendarSyncPanel()
                     .padding(.horizontal, 10)
             }
-            if todaySection == .reminders || !isSelecting { FocusTimerView() }
+            if store.todaySection == .reminders || !isSelecting { FocusTimerView() }
         }
         .sheet(item: $editingTask) { task in
             TaskEditorView(task: task)
@@ -146,7 +145,7 @@ struct TaskListView: View {
         .onChange(of: store.tasks.map(\.id)) { taskIDs in
             selectedTaskIDs.formIntersection(Set(taskIDs))
         }
-        .onChange(of: todaySection) { section in
+        .onChange(of: store.todaySection) { section in
             if section == .reminders {
                 isSelecting = false
                 selectedTaskIDs.removeAll()
@@ -334,11 +333,6 @@ struct TaskListView: View {
         formatter.dateFormat = "M月d日 EEEE"
         return formatter
     }()
-}
-
-private enum TodaySection: Hashable {
-    case tasks
-    case reminders
 }
 
 private struct TaskCalendarSyncPanel: View {

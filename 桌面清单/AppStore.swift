@@ -15,8 +15,10 @@ final class AppStore: ObservableObject {
     @Published private(set) var pendingReminderDeletions: [PendingReminderDeletion] = []
 
     @Published var selectedDate: Date = Date().startOfDay
-    @Published var selectedTab: AppTab = .month
+    @Published var selectedTab: AppTab = .tasks
     @Published var displayedMonth: Date = Date().startOfDay
+    @Published var todaySection: TodaySection = .tasks
+    private var lastRollover = DailyRollover.periodStart(at: Date())
 
     @Published var sessionLength: Int = 25 * 60
     @Published var remainingSeconds: Int = 25 * 60
@@ -48,6 +50,20 @@ final class AppStore: ObservableObject {
 
     deinit {
         timer?.invalidate()
+    }
+
+    func showDay(_ date: Date, section: TodaySection) {
+        selectedDate = Calendar.current.startOfDay(for: date)
+        todaySection = section
+        selectedTab = .tasks
+    }
+
+    func refreshDayIfNeeded(now: Date = Date()) {
+        let period = DailyRollover.periodStart(at: now)
+        guard period > lastRollover else { return }
+        lastRollover = period
+        displayedMonth = Calendar.current.startOfDay(for: now)
+        showDay(now, section: .tasks)
     }
 
     var dataDirectory: URL {

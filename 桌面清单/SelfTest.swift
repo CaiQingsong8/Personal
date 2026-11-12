@@ -168,6 +168,19 @@ struct DeskFlowSelfTest {
         precondition(store.tasks.last?.title == "1. 新的一天")
         precondition(store.reminderItems.contains(where: { $0.title == "定时事项" }))
 
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: Date().startOfDay)!
+        let beforeCutoff = calendar.date(bySettingHour: 0, minute: 59, second: 0, of: nextDay)!
+        let cutoff = calendar.date(bySettingHour: 1, minute: 0, second: 0, of: nextDay)!
+        precondition(DailyRollover.periodStart(at: beforeCutoff) < DailyRollover.periodStart(at: cutoff))
+        precondition(DailyRollover.nextCutoff(after: beforeCutoff) == cutoff)
+        store.showDay(day, section: .reminders)
+        precondition(store.selectedDate == day.startOfDay && store.todaySection == .reminders && store.selectedTab == .tasks)
+        store.refreshDayIfNeeded(now: cutoff)
+        precondition(store.selectedDate == nextDay && store.todaySection == .tasks && store.selectedTab == .tasks)
+        store.showDay(day, section: .reminders)
+        store.refreshDayIfNeeded(now: cutoff.addingTimeInterval(60))
+        precondition(store.selectedDate == day.startOfDay && store.todaySection == .reminders)
+
         print("SELF_TEST_OK tasks=\(persisted.tasks.count) reminders=\(persisted.reminderItems.count) focusRecords=\(persisted.focusRecords.count) data=\(store.dataFile.path)")
     }
 }

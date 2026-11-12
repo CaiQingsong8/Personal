@@ -101,8 +101,10 @@ struct DeskFlowSelfTest {
         store.applyTasks([TodoItem(title: "晚间排期", dueDate: seventeen, hasSpecificTime: true, calendarDurationSeconds: 2 * 3600)])
         store.addTask(title: "次日任务", dueDate: day)
         precondition(store.tasks.last?.dueDate == nine && calendar.isDate(store.selectedDate, inSameDayAs: tomorrow))
+        precondition(store.tasks.last?.title == "1. 次日任务")
         store.addTask(title: "次日连续任务", dueDate: day)
         precondition(store.tasks.last?.dueDate == nine.addingTimeInterval(2 * 3600))
+        precondition(store.tasks.last?.title == "2. 次日连续任务")
 
         let backupEncoder = JSONEncoder()
         backupEncoder.dateEncodingStrategy = .iso8601
@@ -151,6 +153,20 @@ struct DeskFlowSelfTest {
         precondition(store.reminderItems.last?.dueDate == fifteen && store.reminderItems.last?.hasSpecificTime == true)
         store.addTask(title: "自选开始", dueDate: day, explicitStart: ten, duration: 1800)
         precondition(store.tasks.last?.dueDate == ten && store.tasks.last?.calendarDurationSeconds == 1800)
+
+        store.applyTasks([])
+        store.addTask(title: "第一项", dueDate: day, explicitStart: ten)
+        store.addTask(title: "第二项", dueDate: day, explicitStart: ten)
+        precondition(store.tasks.map(\.title) == ["1. 第一项", "2. 第二项"])
+        store.addTask(title: "7. 自定义", dueDate: day, explicitStart: ten)
+        store.addTask(title: "继续", dueDate: day, explicitStart: ten)
+        precondition(store.tasks.suffix(2).map(\.title) == ["7. 自定义", "8. 继续"])
+        store.deleteTask(store.tasks[1])
+        store.addTask(title: "删除后", dueDate: day, explicitStart: ten)
+        precondition(store.tasks.last?.title == "9. 删除后")
+        store.addTask(title: "新的一天", dueDate: tomorrow, explicitStart: nine)
+        precondition(store.tasks.last?.title == "1. 新的一天")
+        precondition(store.reminderItems.contains(where: { $0.title == "定时事项" }))
 
         print("SELF_TEST_OK tasks=\(persisted.tasks.count) reminders=\(persisted.reminderItems.count) focusRecords=\(persisted.focusRecords.count) data=\(store.dataFile.path)")
     }

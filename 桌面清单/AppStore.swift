@@ -96,7 +96,8 @@ final class AppStore: ObservableObject {
         let taskDate = dueDate ?? selectedDate
         let calendar = Calendar.current
         if let explicitStart {
-            tasks.append(TodoItem(title: clean, dueDate: TaskScheduleDefaults.outsideLunch(explicitStart), hasSpecificTime: true, calendarDurationSeconds: duration, localUpdatedAt: Date()))
+            let start = TaskScheduleDefaults.outsideLunch(explicitStart)
+            tasks.append(TodoItem(title: numberedTaskTitle(clean, on: start, calendar: calendar), dueDate: start, hasSpecificTime: true, calendarDurationSeconds: duration, localUpdatedAt: Date()))
             save()
             return
         }
@@ -113,7 +114,7 @@ final class AppStore: ObservableObject {
             if !tasks.contains(where: { calendar.isDate($0.dueDate, inSameDayAs: scheduleDay) && $0.hasSpecificTime != false }) { break }
         }
         tasks.append(TodoItem(
-            title: clean,
+            title: numberedTaskTitle(clean, on: scheduledStart, calendar: calendar),
             dueDate: scheduledStart,
             hasSpecificTime: true,
             calendarDurationSeconds: duration,
@@ -121,6 +122,21 @@ final class AppStore: ObservableObject {
         ))
         if !calendar.isDate(scheduledStart, inSameDayAs: taskDate) { selectedDate = calendar.startOfDay(for: scheduledStart) }
         save()
+    }
+
+    private func numberedTaskTitle(_ title: String, on date: Date, calendar: Calendar) -> String {
+        let pattern = "^([0-9]+)[.．、]"
+        let expression = try! NSRegularExpression(pattern: pattern)
+        func number(in value: String) -> Int? {
+            let range = NSRange(value.startIndex..., in: value)
+            guard let match = expression.firstMatch(in: value, range: range),
+                  let numberRange = Range(match.range(at: 1), in: value) else { return nil }
+            return Int(value[numberRange])
+        }
+        if number(in: title) != nil { return title }
+        let existing = tasks.filter { calendar.isDate($0.dueDate, inSameDayAs: date) }
+        let highest = existing.compactMap { number(in: $0.title) }.max() ?? 0
+        return "\(max(highest, existing.count) + 1). \(title)"
     }
 
     func updateTask(_ task: TodoItem) {

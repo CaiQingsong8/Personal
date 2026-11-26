@@ -473,7 +473,8 @@ final class CalendarSyncService: ObservableObject {
         statusMessage = "已写入“\(calendar.title)”：新增 \(created)，更新 \(updated)，移入所选日历 \(moved)，删除 \(deletionSummary.removed)，待重试 \(deletionSummary.pending)，未安全匹配 \(conflicts)"
     }
 
-    func syncTasksToCalendar(from appStore: AppStore) async {
+    func syncTasksToCalendar(from appStore: AppStore, days: DateInterval? = nil) async {
+        guard !isWorking else { taskStatusMessage = "同步正在进行，请稍后重试"; return }
         guard prepareForTransfer(requireWritable: true, taskSync: true) else { return }
         guard let calendar = selectedCalendar else {
             taskStatusMessage = "请先选择一个可编辑日历"
@@ -492,18 +493,19 @@ final class CalendarSyncService: ObservableObject {
         let range = transferRange
         let predicate = eventStore.predicateForEvents(withStart: range.start, end: range.end, calendars: nil)
         let events = eventStore.events(matching: predicate).filter { $0.status != .canceled }
-        let deletionSummary = syncPendingDeletions(in: appStore, events: events, kind: .task)
-        var tasks = appStore.tasks
+        let deletionSummary = days != nil ? CalendarDeletionSummary() : syncPendingDeletions(in: appStore, events: events, kind: .task)
+        let allowed = days ?? DateInterval(start: range.start, end: range.end)
+        let ids = appStore.tasks.filter { $0.dueDate >= allowed.start && $0.dueDate < allowed.end }.map(\.id)
         var created = 0
         var updated = 0
         var moved = 0
         var conflicts = 0
-        let eligibleTaskCount = tasks.filter { $0.dueDate >= range.start && $0.dueDate < range.end }.count
+        let eligibleTaskCount = ids.count
         var processedTaskCount = 0
 
-        for index in tasks.indices {
-            let task = tasks[index]
-            guard task.dueDate >= range.start && task.dueDate < range.end else { continue }
+        for id in ids {
+            guard let task = appStore.tasks.first(where: { $0.id == id }),
+                  task.dueDate >= allowed.start && task.dueDate < allowed.end else { continue }
             processedTaskCount += 1
             let matches = matchingTaskEvents(for: task, in: events)
             if matches.count > 1 {
@@ -534,10 +536,9 @@ final class CalendarSyncService: ObservableObject {
                 applyDate(from: task, to: event)
                 try eventStore.save(event, span: .thisEvent, commit: true)
 
-                tasks[index].calendarEventIdentifier = event.eventIdentifier
-                tasks[index].calendarEventExternalIdentifier = event.calendarItemExternalIdentifier
-                tasks[index].calendarIdentifier = calendar.calendarIdentifier
-                tasks[index].calendarSyncedAt = Date()
+                appStore.recordTaskCalendarLink(id: id, eventID: event.eventIdentifier,
+                                                externalID: event.calendarItemExternalIdentifier,
+                                                calendarID: calendar.calendarIdentifier)
                 if existingEvent == nil {
                     created += 1
                 } else if shouldMoveToSelectedCalendar {
@@ -546,7 +547,6 @@ final class CalendarSyncService: ObservableObject {
                     updated += 1
                 }
             } catch {
-                if created + updated + moved > 0 { appStore.applyTasks(tasks) }
                 taskStatusMessage = "任务同步中断：新增 \(created)，更新 \(updated)，移入所选日历 \(moved)，删除 \(deletionSummary.removed)，待重试 \(deletionSummary.pending)；\(error.localizedDescription)"
                 return
             }
@@ -557,7 +557,6 @@ final class CalendarSyncService: ObservableObject {
             }
         }
 
-        if created + updated + moved > 0 { appStore.applyTasks(tasks) }
         loadMonthEvents(containing: appStore.displayedMonth, appStore: appStore)
         taskStatusMessage = "清单任务已写入“\(calendar.title)”：新增 \(created)，更新 \(updated)，移入所选日历 \(moved)，删除 \(deletionSummary.removed)，待重试 \(deletionSummary.pending)，未安全匹配 \(conflicts)"
     }

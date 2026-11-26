@@ -91,10 +91,7 @@ final class AppStore: ObservableObject {
     func tasks(on date: Date) -> [TodoItem] {
         tasks
             .filter { Calendar.current.isDate($0.dueDate, inSameDayAs: date) }
-            .sorted {
-                if $0.isCompleted != $1.isCompleted { return !$0.isCompleted }
-                return $0.createdAt < $1.createdAt
-            }
+            .sorted(by: TaskPlanner.earlier)
     }
 
     func reminderItems(on date: Date) -> [ReminderItem] {
@@ -110,67 +107,60 @@ final class AppStore: ObservableObject {
         let clean = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
         let taskDate = dueDate ?? selectedDate
-        let calendar = Calendar.current
-        if let explicitStart {
-            let start = TaskScheduleDefaults.outsideLunch(explicitStart)
-            tasks.append(TodoItem(title: numberedTaskTitle(clean, on: start, calendar: calendar), dueDate: start, hasSpecificTime: true, calendarDurationSeconds: duration, localUpdatedAt: Date()))
-            save()
-            return
-        }
-        var scheduleDay = taskDate
-        var scheduledStart: Date
-        while true {
-            let previousTaskEnd = tasks
-                .filter { calendar.isDate($0.dueDate, inSameDayAs: scheduleDay) && $0.hasSpecificTime != false }
-                .map { TaskScheduleDefaults.endDate(start: $0.dueDate, duration: $0.calendarDurationSeconds ?? TaskScheduleDefaults.durationSeconds, calendar: calendar) }
-                .max()
-            scheduledStart = TaskScheduleDefaults.startDate(on: scheduleDay, after: previousTaskEnd, calendar: calendar)
-            if previousTaskEnd == nil || calendar.isDate(scheduledStart, inSameDayAs: scheduleDay) { break }
-            scheduleDay = scheduledStart
-            if !tasks.contains(where: { calendar.isDate($0.dueDate, inSameDayAs: scheduleDay) && $0.hasSpecificTime != false }) { break }
-        }
-        tasks.append(TodoItem(
-            title: numberedTaskTitle(clean, on: scheduledStart, calendar: calendar),
-            dueDate: scheduledStart,
-            hasSpecificTime: true,
-            calendarDurationSeconds: duration,
-            localUpdatedAt: Date()
-        ))
-        if !calendar.isDate(scheduledStart, inSameDayAs: taskDate) { selectedDate = calendar.startOfDay(for: scheduledStart) }
+        let item = TodoItem(title: clean, dueDate: explicitStart ?? taskDate, hasSpecificTime: true,
+                            calendarDurationSeconds: duration, localUpdatedAt: Date())
+        TaskPlanner.add(item, explicit: explicitStart != nil, to: &tasks, now: Date())
+        TaskPlanner.renumber(&tasks)
+        if let actualDay = tasks.last?.dueDate.startOfDay, actualDay != taskDate.startOfDay { selectedDate = actualDay }
         save()
-    }
-
-    private func numberedTaskTitle(_ title: String, on date: Date, calendar: Calendar) -> String {
-        let pattern = "^([0-9]+)[.．、]"
-        let expression = try! NSRegularExpression(pattern: pattern)
-        func number(in value: String) -> Int? {
-            let range = NSRange(value.startIndex..., in: value)
-            guard let match = expression.firstMatch(in: value, range: range),
-                  let numberRange = Range(match.range(at: 1), in: value) else { return nil }
-            return Int(value[numberRange])
-        }
-        if number(in: title) != nil { return title }
-        let existing = tasks.filter { calendar.isDate($0.dueDate, inSameDayAs: date) }
-        let highest = existing.compactMap { number(in: $0.title) }.max() ?? 0
-        return "\(max(highest, existing.count) + 1). \(title)"
     }
 
     func updateTask(_ task: TodoItem) {
         guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
+        let completionChanged = task.isCompleted != tasks[index].isCompleted
         var updated = task
         if updated.hasSpecificTime == true {
             updated.dueDate = TaskScheduleDefaults.outsideLunch(updated.dueDate)
         }
         updated.localUpdatedAt = Date()
         tasks[index] = updated
+        if completionChanged { TaskPlanner.reorderCompletion(&tasks, on: updated.dueDate) }
+        TaskPlanner.renumber(&tasks)
         save()
     }
 
     func toggleTask(_ task: TodoItem) {
-        guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
-        tasks[index].isCompleted.toggle()
-        tasks[index].completedAt = tasks[index].isCompleted ? Date() : nil
-        tasks[index].localUpdatedAt = Date()
+        guard var current = tasks.first(where: { $0.id == task.id }) else { return }
+        current.isCompleted.toggle()
+        current.completedAt = current.isCompleted ? Date() : nil
+        updateTask(current)
+    }
+
+    func moveUnfinished(on day: Date) throws -> DateInterval? {
+        guard !persistenceBlockedByDecodeFailure else { throw CocoaError(.fileWriteUnknown) }
+        let moving = tasks(on: day).filter { !$0.isCompleted }
+        guard !moving.isEmpty else { return nil }
+        let ids = Set(moving.map(\.id))
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: day.startOfDay)!
+        var snapshot = currentPersistedData()
+        snapshot.tasks.removeAll { ids.contains($0.id) }
+        guard TaskPlanner.place(moving, on: tomorrow, into: &snapshot.tasks, for: .carryOver) else {
+            throw NSError(domain: "DeskFlow.Schedule", code: 1, userInfo: [NSLocalizedDescriptionKey: "次日无法排下全部任务。请先调整时长或移走部分任务。"])
+        }
+        TaskPlanner.renumber(&snapshot.tasks)
+        try FileManager.default.createDirectory(at: dataDirectory, withIntermediateDirectories: true)
+        try encoder.encode(snapshot).write(to: dataFile, options: .atomic)
+        tasks = snapshot.tasks
+        showDay(tomorrow, section: .tasks)
+        return DateInterval(start: day.startOfDay, end: Calendar.current.date(byAdding: .day, value: 1, to: tomorrow)!)
+    }
+
+    func recordTaskCalendarLink(id: UUID, eventID: String?, externalID: String?, calendarID: String) {
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
+        tasks[index].calendarEventIdentifier = eventID
+        tasks[index].calendarEventExternalIdentifier = externalID
+        tasks[index].calendarIdentifier = calendarID
+        tasks[index].calendarSyncedAt = Date()
         save()
     }
 
@@ -278,6 +268,7 @@ final class AppStore: ObservableObject {
             }
         }
         tasks.removeAll { ids.contains($0.id) }
+        TaskPlanner.renumber(&tasks)
         if let timerTaskID, ids.contains(timerTaskID) { self.timerTaskID = nil }
         save()
     }
@@ -443,6 +434,7 @@ final class AppStore: ObservableObject {
         let newReminders = selectedReminders.filter { reminderIDs.insert($0.id).inserted }
         var snapshot = currentPersistedData()
         snapshot.tasks += newTasks
+        TaskPlanner.renumber(&snapshot.tasks)
         snapshot.reminderItems += newReminders
         try FileManager.default.createDirectory(at: dataDirectory, withIntermediateDirectories: true)
         try encoder.encode(snapshot).write(to: dataFile, options: .atomic)
@@ -548,6 +540,7 @@ final class AppStore: ObservableObject {
             let decoded = try decoder.decode(PersistedData.self, from: data)
             tasks = decoded.tasks
             let correctedLunchStarts = TaskScheduleDefaults.normalizeUpcomingTasks(&tasks)
+            TaskPlanner.renumber(&tasks)
             calendarSchedules = decoded.calendarSchedules
             reminderItems = decoded.reminderItems
             focusRecords = decoded.focusRecords
@@ -561,7 +554,7 @@ final class AppStore: ObservableObject {
                 sessionStartedAt = snapshot.startedAt
                 timerTaskID = snapshot.taskID
             }
-            if decoded.didMigrateLegacyRecords || correctedLunchStarts { persist() }
+            if decoded.didMigrateLegacyRecords || correctedLunchStarts || tasks != decoded.tasks { persist() }
         } catch {
             if (error as NSError).code != NSFileReadNoSuchFileError {
                 persistenceBlockedByDecodeFailure = true

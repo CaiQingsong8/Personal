@@ -613,3 +613,143 @@ enum CalendarEventVisibility {
         isHoliday || isSolarTerm || showsCalendarEvents
     }
 }
+
+enum TaskPlanner {
+    static func earlier(_ a: TodoItem, _ b: TodoItem) -> Bool {
+        if a.dueDate != b.dueDate { return a.dueDate < b.dueDate }
+        // Backups store whole seconds. Stable sorting preserves insertion order on ties.
+        return floor(a.createdAt.timeIntervalSince1970) < floor(b.createdAt.timeIntervalSince1970)
+    }
+
+    private static let prefix = try! NSRegularExpression(pattern: #"^(?:[①-⑳㉑-㉟㊱-㊿]|（[0-9]+）|[0-9]+[.．、](?![0-9]))\s*"#)
+
+    static func renumber(_ tasks: inout [TodoItem]) {
+        let groups = Dictionary(grouping: tasks.indices) { tasks[$0].dueDate.startOfDay }
+        for indices in groups.values {
+            let ordered = indices.sorted { earlier(tasks[$0], tasks[$1]) }
+            for (offset, index) in ordered.enumerated() {
+                let n = offset + 1
+                let base = tasks[index].title
+                let text = prefix.stringByReplacingMatches(in: base, range: NSRange(base.startIndex..., in: base), withTemplate: "")
+                let scalar: Int
+                switch n {
+                case 1...20: scalar = 0x2460 + n - 1
+                case 21...35: scalar = 0x3251 + n - 21
+                case 36...50: scalar = 0x32B1 + n - 36
+                default: scalar = 0
+                }
+                let badge = scalar == 0 ? "（\(n)）" : String(UnicodeScalar(scalar)!)
+                let title = "\(badge) \(text)"
+                if title != base {
+                    tasks[index].title = title
+                    tasks[index].localUpdatedAt = Date()
+                }
+            }
+        }
+    }
+
+    static func end(_ task: TodoItem) -> Date {
+        TaskScheduleDefaults.endDate(start: task.dueDate, duration: task.calendarDurationSeconds ?? TaskScheduleDefaults.durationSeconds)
+    }
+
+    static func tooLate(_ start: Date, duration: TimeInterval) -> Bool {
+        let hour = Calendar.current.date(bySettingHour: 18, minute: duration > 7200 ? 0 : 30, second: 0, of: start)!
+        return start > hour
+    }
+
+    private static func timedIndices(_ tasks: [TodoItem], on date: Date) -> [Int] {
+        tasks.indices.filter { tasks[$0].hasSpecificTime != false && tasks[$0].dueDate.startOfDay == date.startOfDay }
+            .sorted { earlier(tasks[$0], tasks[$1]) }
+    }
+
+    private static func setStart(_ task: inout TodoItem, _ date: Date) {
+        guard task.dueDate != date || task.hasSpecificTime != true else { return }
+        task.dueDate = date
+        task.hasSpecificTime = true
+        task.localUpdatedAt = Date()
+    }
+
+    // Place a block at nine. Preserve gaps and only push overlapping pending work.
+    // A completed appointment (or work extending from yesterday) reserves its time.
+    enum Placement { case lateAddition, carryOver }
+
+    static func place(_ block: [TodoItem], on day: Date, into tasks: inout [TodoItem], for reason: Placement) -> Bool {
+        let nine = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: day)!
+        let indices = timedIndices(tasks, on: day)
+        let carryEnd = tasks.filter { $0.hasSpecificTime != false && $0.dueDate < day.startOfDay }.map(end).max() ?? nine
+        var cursor = max(nine, carryEnd)
+        var shift = indices
+        if reason == .lateAddition && indices.contains(where: { tasks[$0].dueDate <= nine && end(tasks[$0]) > nine }) {
+            cursor = max(cursor, indices.map { end(tasks[$0]) }.max() ?? nine)
+            shift = []
+        }
+        var placed = block
+        var proposed = tasks
+        // If the block or the displaced queue reaches completed work, retry after it.
+        repeat {
+            var next = cursor
+            var conflict: Date?
+            for i in placed.indices {
+                let start = TaskScheduleDefaults.outsideLunch(next)
+                if start.startOfDay != day.startOfDay || (reason == .lateAddition && tooLate(start, duration: placed[i].calendarDurationSeconds ?? 7200)) { return false }
+                setStart(&placed[i], start)
+                next = end(placed[i])
+            }
+            proposed = tasks
+            for i in shift where end(tasks[i]) > cursor {
+                if tasks[i].isCompleted {
+                    if tasks[i].dueDate < next {
+                        conflict = end(tasks[i])
+                        break
+                    }
+                    next = end(tasks[i])
+                    continue
+                }
+                let start = max(tasks[i].dueDate, TaskScheduleDefaults.outsideLunch(next))
+                if start.startOfDay != day.startOfDay { return false }
+                if start > tasks[i].dueDate { setStart(&proposed[i], start) }
+                next = end(proposed[i])
+            }
+            if let conflict { cursor = conflict } else {
+                if reason == .carryOver, let midnight = Calendar.current.date(byAdding: .day, value: 1, to: day.startOfDay), next > midnight { return false }
+                break
+            }
+        } while true
+        tasks = proposed + placed
+        return true
+    }
+
+    static func add(_ task: TodoItem, explicit: Bool, to tasks: inout [TodoItem], now: Date) {
+        let day = task.dueDate.startOfDay
+        let duration = task.calendarDurationSeconds ?? 7200
+        let previousEnd = timedIndices(tasks, on: day).map { end(tasks[$0]) }.max()
+        let preferred = explicit ? task.dueDate : previousEnd ?? TaskScheduleDefaults.startDate(on: day, now: now)
+        let start = TaskScheduleDefaults.outsideLunch(preferred)
+        let lateToday = day == now.startOfDay && tooLate(now, duration: duration)
+        if !lateToday && start.startOfDay == day && !tooLate(start, duration: duration) {
+            var item = task
+            setStart(&item, start)
+            tasks.append(item)
+            return
+        }
+        var candidate = Calendar.current.date(byAdding: .day, value: 1, to: day)!
+        while !place([task], on: candidate, into: &tasks, for: .lateAddition) {
+            candidate = Calendar.current.date(byAdding: .day, value: 1, to: candidate)!
+        }
+    }
+
+    static func reorderCompletion(_ tasks: inout [TodoItem], on day: Date) {
+        let slots = timedIndices(tasks, on: day)
+        let order = slots.filter { tasks[$0].isCompleted } + slots.filter { !tasks[$0].isCompleted }
+        guard slots != order, let first = slots.indices.first(where: { slots[$0] != order[$0] }) else { return }
+        let last = slots.indices.last(where: { slots[$0] != order[$0] })!
+        let times = slots.map { tasks[$0].dueDate }
+        var cursor = times[first]
+        for position in first..<order.count {
+            let index = order[position]
+            let start = TaskScheduleDefaults.outsideLunch(position <= last ? cursor : max(times[position], cursor))
+            setStart(&tasks[index], start)
+            cursor = end(tasks[index])
+        }
+    }
+}

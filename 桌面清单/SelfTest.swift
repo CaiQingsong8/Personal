@@ -21,7 +21,8 @@ struct DeskFlowSelfTest {
         precondition(store.tasks.isEmpty)
         precondition(store.focusRecords.isEmpty)
 
-        store.addTask(title: "验证本地保存", dueDate: Date())
+        let testMorning = Calendar.current.date(from: DateComponents(year: 2025, month: 9, day: 1, hour: 9))!
+        store.addTask(title: "验证本地保存", dueDate: testMorning, explicitStart: testMorning)
         guard var task = store.tasks.first else { fatalError("task creation failed") }
         store.addTask(title: "验证连续任务", dueDate: task.dueDate.startOfDay)
         guard let chainedTask = store.tasks.last else { fatalError("second task creation failed") }
@@ -101,10 +102,10 @@ struct DeskFlowSelfTest {
         store.applyTasks([TodoItem(title: "晚间排期", dueDate: seventeen, hasSpecificTime: true, calendarDurationSeconds: 2 * 3600)])
         store.addTask(title: "次日任务", dueDate: day)
         precondition(store.tasks.last?.dueDate == nine && calendar.isDate(store.selectedDate, inSameDayAs: tomorrow))
-        precondition(store.tasks.last?.title == "1. 次日任务")
+        precondition(store.tasks.last?.title == "① 次日任务")
         store.addTask(title: "次日连续任务", dueDate: day)
         precondition(store.tasks.last?.dueDate == nine.addingTimeInterval(2 * 3600))
-        precondition(store.tasks.last?.title == "2. 次日连续任务")
+        precondition(store.tasks.last?.title == "② 次日连续任务")
 
         let backupEncoder = JSONEncoder()
         backupEncoder.dateEncodingStrategy = .iso8601
@@ -157,16 +158,72 @@ struct DeskFlowSelfTest {
         store.applyTasks([])
         store.addTask(title: "第一项", dueDate: day, explicitStart: ten)
         store.addTask(title: "第二项", dueDate: day, explicitStart: ten)
-        precondition(store.tasks.map(\.title) == ["1. 第一项", "2. 第二项"])
+        precondition(store.tasks.map(\.title) == ["① 第一项", "② 第二项"])
         store.addTask(title: "7. 自定义", dueDate: day, explicitStart: ten)
         store.addTask(title: "继续", dueDate: day, explicitStart: ten)
-        precondition(store.tasks.suffix(2).map(\.title) == ["7. 自定义", "8. 继续"])
+        precondition(store.tasks.suffix(2).map(\.title) == ["③ 自定义", "④ 继续"])
         store.deleteTask(store.tasks[1])
         store.addTask(title: "删除后", dueDate: day, explicitStart: ten)
-        precondition(store.tasks.last?.title == "9. 删除后")
+        precondition(store.tasks.last?.title == "④ 删除后")
         store.addTask(title: "新的一天", dueDate: tomorrow, explicitStart: nine)
-        precondition(store.tasks.last?.title == "1. 新的一天")
+        precondition(store.tasks.last?.title == "① 新的一天")
         precondition(store.reminderItems.contains(where: { $0.title == "定时事项" }))
+
+        func at(_ d: Date, _ h: Int, _ m: Int = 0) -> Date {
+            calendar.date(bySettingHour: h, minute: m, second: 0, of: d)!
+        }
+        func timed(_ name: String, _ date: Date, _ hours: Double, done: Bool = false) -> TodoItem {
+            TodoItem(title: name, dueDate: date, isCompleted: done, hasSpecificTime: true, calendarDurationSeconds: hours * 3600)
+        }
+        let first = timed("第一", at(day, 9), 1, done: true)
+        let second = timed("第二", ten, 2)
+        var third = timed("第三", at(day, 14), 3)
+        third.calendarEventIdentifier = "linked-third"
+        store.applyTasks([first, second, third])
+        store.toggleTask(third)
+        let ordered = store.tasks(on: day)
+        precondition(ordered.map(\.title) == ["① 第一", "② 第三", "③ 第二"])
+        precondition(ordered[1].dueDate == ten && ordered[2].dueDate == fifteen)
+        precondition(ordered[1].id == third.id && ordered[1].calendarEventIdentifier == "linked-third")
+        var secondLinked = ordered[2]
+        secondLinked.calendarEventIdentifier = "linked-second"
+        let existing = timed("明日已有", at(tomorrow, 10), 1)
+        let distant = timed("无关日期", at(calendar.date(byAdding: .day, value: 2, to: day)!, 9), 2)
+        store.applyTasks([ordered[0], ordered[1], secondLinked, existing, distant])
+        let beforeReminders = store.reminderItems
+        let beforeDeletes = store.pendingCalendarDeletions
+        let scope = try store.moveUnfinished(on: day)
+        precondition(scope?.start == day && scope?.end == distant.dueDate.startOfDay)
+        precondition(store.tasks(on: tomorrow).map(\.title) == ["① 第二", "② 明日已有"])
+        precondition(store.tasks(on: tomorrow)[0].dueDate == nine && store.tasks(on: tomorrow)[1].dueDate == at(tomorrow, 11))
+        precondition(store.tasks(on: tomorrow)[0].calendarEventIdentifier == "linked-second")
+        precondition(store.tasks(on: day).allSatisfy(\.isCompleted))
+        let retry = try store.moveUnfinished(on: day)
+        precondition(retry == nil && store.pendingCalendarDeletions == beforeDeletes && store.reminderItems == beforeReminders)
+        let savedMove = try decoder.decode(PersistedData.self, from: Data(contentsOf: store.dataFile))
+        precondition(savedMove.tasks.map(\.id) == store.tasks.map(\.id))
+        for (hour, minute, length, rolls) in [(18, 0, 3, false), (18, 1, 3, true), (18, 30, 2, false), (18, 31, 1, true)] {
+            var fixture: [TodoItem] = []
+            TaskPlanner.add(timed("边界", at(day, hour, minute), Double(length)), explicit: true, to: &fixture, now: ten)
+            precondition(fixture[0].dueDate == (rolls ? nine : at(day, hour, minute)))
+        }
+        for length in [2.0, 3.0] {
+            var fixture = [timed("原11点", at(tomorrow, 11), 1)]
+            TaskPlanner.add(timed("补位", at(day, 19), length), explicit: true, to: &fixture, now: ten)
+            precondition(fixture[1].dueDate == nine)
+            precondition(fixture[0].dueDate == at(tomorrow, length == 2 ? 11 : 14))
+        }
+        var protected = [timed("已完成", at(tomorrow, 11), 1, done: true)]
+        TaskPlanner.add(timed("后补", at(day, 19), 3), explicit: true, to: &protected, now: ten)
+        precondition(protected[0].dueDate == at(tomorrow, 11) && protected[1].dueDate == at(tomorrow, 14))
+        var late = [first]
+        TaskPlanner.add(timed("晚间打开", day, 2), explicit: false, to: &late, now: at(day, 19))
+        precondition(late.last?.dueDate == nine)
+        store.applyTasks([timed("超长", ten, 20)])
+        let beforeOverflow = try Data(contentsOf: store.dataFile)
+        do { _ = try store.moveUnfinished(on: day); fatalError("overfull move accepted") } catch { }
+        let afterOverflow = try Data(contentsOf: store.dataFile)
+        precondition(beforeOverflow == afterOverflow && store.tasks.count == 1)
 
         let nextDay = calendar.date(byAdding: .day, value: 1, to: Date().startOfDay)!
         let beforeCutoff = calendar.date(bySettingHour: 0, minute: 59, second: 0, of: nextDay)!

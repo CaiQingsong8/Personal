@@ -3,6 +3,7 @@ import SwiftUI
 
 struct TaskListView: View {
     @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var calendarSync: CalendarSyncService
     @State private var newTaskTitle = ""
     @State private var taskTimeEnabled = false
     @State private var taskStartTime = Date()
@@ -23,8 +24,7 @@ struct TaskListView: View {
             .filter { $0.dueDate >= start && $0.dueDate < end }
             .sorted {
                 if !calendar.isDate($0.dueDate, inSameDayAs: $1.dueDate) { return $0.dueDate > $1.dueDate }
-                if $0.isCompleted != $1.isCompleted { return !$0.isCompleted }
-                return $0.createdAt < $1.createdAt
+                return TaskPlanner.earlier($0, $1)
             }
     }
     private var recentTaskGroups: [TaskDayGroup] {
@@ -198,6 +198,10 @@ struct TaskListView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            if !isSelecting && Calendar.current.isDateInToday(store.selectedDate) {
+                Button("未完成转明天", action: confirmMove)
+                    .disabled(!dayTasks.contains { !$0.isCompleted } || calendarSync.isWorking)
+            }
         }
         .font(.caption)
         .buttonStyle(.borderless)
@@ -301,6 +305,30 @@ struct TaskListView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func confirmMove() {
+        let day = store.selectedDate
+        let count = store.tasks(on: day).filter { !$0.isCompleted }.count
+        let alert = NSAlert()
+        alert.messageText = "将今天的 \(count) 项未完成任务转到明天？"
+        alert.informativeText = "从 09:00 起按当前顺序排期，顺延冲突的未完成任务，两天分别重新编号。"
+        alert.addButton(withTitle: "转到明天")
+        alert.addButton(withTitle: "取消")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do {
+            guard let days = try store.moveUnfinished(on: day) else { return }
+            let sync = NSAlert()
+            sync.messageText = "已转到明天，要同步这两天的任务到 Mac 日历吗？"
+            sync.informativeText = "将两天的任务写入所选日历，已关联的事件按原记录更新。"
+            sync.addButton(withTitle: "同步这两天")
+            sync.addButton(withTitle: "仅保存在清单")
+            if sync.runModal() == .alertFirstButtonReturn {
+                Task { await calendarSync.syncTasksToCalendar(from: store, days: days) }
+            }
+        } catch {
+            NSAlert(error: error).runModal()
+        }
     }
 
     private func addTask() {

@@ -225,6 +225,35 @@ struct DeskFlowSelfTest {
         let afterOverflow = try Data(contentsOf: store.dataFile)
         precondition(beforeOverflow == afterOverflow && store.tasks.count == 1)
 
+        let historical = calendar.date(byAdding: .day, value: -2, to: day)!
+        let previous = timed("历史一", at(historical, 9), 1)
+        let previousTwo = timed("历史二", at(historical, 10), 2)
+        let dayExisting = timed("今天已排", at(day, 16), 1)
+        let nextExisting = timed("明日已有", at(tomorrow, 9), 1)
+        store.applyTasks([previous, previousTwo, dayExisting, nextExisting])
+        let historicScope = try store.moveHistoricalTasks(on: historical, now: at(day, 15))
+        precondition(historicScope?.start == historical)
+        let movedOne = store.tasks.first { $0.id == previous.id }!
+        let movedTwo = store.tasks.first { $0.id == previousTwo.id }!
+        precondition(movedOne.dueDate == at(day, 15))
+        precondition(movedTwo.dueDate == at(tomorrow, 10))
+        precondition(store.tasks.first { $0.id == dayExisting.id }?.dueDate == at(day, 16))
+        precondition(store.tasks.first { $0.id == nextExisting.id }?.dueDate == at(tomorrow, 9))
+        let afterMove = try store.moveHistoricalTasks(on: historical, now: at(day, 15))
+        precondition(afterMove == nil)
+        let pastReminder = ReminderItem(title: "过去事项", dueDate: at(historical, 10), hasSpecificTime: true, reminderCalendarItemIdentifier: "keep-reminder")
+        let doneReminder = ReminderItem(title: "已完成事项", dueDate: historical, isCompleted: true)
+        store.applyReminderItems([pastReminder, doneReminder])
+        let movedIDs = try store.moveHistoricalReminders(on: historical, to: day, now: at(day, 15, 11))
+        precondition(movedIDs == [pastReminder.id])
+        precondition(store.reminderItems.first { $0.id == pastReminder.id }?.dueDate == at(day, 15, 30))
+        precondition(store.reminderItems.first { $0.id == pastReminder.id }?.reminderCalendarItemIdentifier == "keep-reminder")
+        precondition(store.reminderItems.first { $0.id == doneReminder.id }?.dueDate == historical)
+        let lateReminder = ReminderItem(title: "夜间事项", dueDate: at(historical, 10), hasSpecificTime: true)
+        store.applyReminderItems([lateReminder])
+        _ = try store.moveHistoricalReminders(on: historical, to: day, now: at(day, 23, 59))
+        precondition(store.reminderItems[0].dueDate == tomorrow)
+
         let nextDay = calendar.date(byAdding: .day, value: 1, to: Date().startOfDay)!
         let beforeCutoff = calendar.date(bySettingHour: 0, minute: 59, second: 0, of: nextDay)!
         let cutoff = calendar.date(bySettingHour: 1, minute: 0, second: 0, of: nextDay)!

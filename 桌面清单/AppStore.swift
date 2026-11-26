@@ -155,6 +155,73 @@ final class AppStore: ObservableObject {
         return DateInterval(start: day.startOfDay, end: Calendar.current.date(byAdding: .day, value: 1, to: tomorrow)!)
     }
 
+    func moveHistoricalTasks(on day: Date, now: Date = Date()) throws -> DateInterval? {
+        guard !persistenceBlockedByDecodeFailure else { throw CocoaError(.fileWriteUnknown) }
+        let moving = tasks(on: day).filter { !$0.isCompleted }
+        guard !moving.isEmpty else { return nil }
+        let ids = Set(moving.map(\.id))
+        let today = now.startOfDay
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
+        var snapshot = currentPersistedData()
+        snapshot.tasks.removeAll { ids.contains($0.id) }
+        var useTomorrow = false
+        var earliestStart = now
+        for task in moving {
+            if !useTomorrow && TaskPlanner.placeInRemainingDay(task, on: today, now: earliestStart, into: &snapshot.tasks) {
+                earliestStart = TaskPlanner.end(snapshot.tasks.last!)
+                continue
+            }
+            useTomorrow = true
+            guard TaskPlanner.place([task], on: tomorrow, into: &snapshot.tasks, for: .lateAddition) else {
+                throw NSError(domain: "DeskFlow.Schedule", code: 2, userInfo: [NSLocalizedDescriptionKey: "明天无法排下全部任务，请先调整任务时长或明天的排期。"])
+            }
+        }
+        TaskPlanner.renumber(&snapshot.tasks)
+        try FileManager.default.createDirectory(at: dataDirectory, withIntermediateDirectories: true)
+        try encoder.encode(snapshot).write(to: dataFile, options: .atomic)
+        tasks = snapshot.tasks
+        showDay(today, section: .tasks)
+        return DateInterval(start: day.startOfDay, end: Calendar.current.date(byAdding: .day, value: 1, to: tomorrow)!)
+    }
+
+    func moveHistoricalReminders(on day: Date, to destination: Date, now: Date = Date()) throws -> Set<UUID> {
+        guard !persistenceBlockedByDecodeFailure else { throw CocoaError(.fileWriteUnknown) }
+        let ids = Set(reminderItems(on: day).filter { !$0.isCompleted }.map(\.id))
+        guard !ids.isEmpty else { return ids }
+        var snapshot = currentPersistedData()
+        for index in snapshot.reminderItems.indices where ids.contains(snapshot.reminderItems[index].id) {
+            let old = snapshot.reminderItems[index]
+            if old.hasSpecificTime == true {
+                let components = Calendar.current.dateComponents([.hour, .minute], from: old.dueDate)
+                var date = Calendar.current.date(bySettingHour: components.hour ?? 9, minute: components.minute ?? 0, second: 0, of: destination)!
+                if date <= now && Calendar.current.isDate(destination, inSameDayAs: now) {
+                    let midnight = Calendar.current.startOfDay(for: now)
+                    let halfHours = floor(now.timeIntervalSince(midnight) / 1800) + 1
+                    date = midnight.addingTimeInterval(halfHours * 1800)
+                }
+                snapshot.reminderItems[index].dueDate = date
+            } else {
+                snapshot.reminderItems[index].dueDate = destination.startOfDay
+            }
+            snapshot.reminderItems[index].localUpdatedAt = now
+        }
+        try FileManager.default.createDirectory(at: dataDirectory, withIntermediateDirectories: true)
+        try encoder.encode(snapshot).write(to: dataFile, options: .atomic)
+        reminderItems = snapshot.reminderItems
+        for item in reminderItems where ids.contains(item.id) { updateReminderNotification(item) }
+        showDay(destination, section: .reminders)
+        return ids
+    }
+
+    func recordReminderLink(id: UUID, itemID: String?, externalID: String?, listID: String?, at date: Date) {
+        guard let index = reminderItems.firstIndex(where: { $0.id == id }) else { return }
+        reminderItems[index].reminderCalendarItemIdentifier = itemID
+        reminderItems[index].reminderCalendarItemExternalIdentifier = externalID
+        reminderItems[index].reminderListIdentifier = listID
+        reminderItems[index].reminderSyncedAt = date
+        save()
+    }
+
     func recordTaskCalendarLink(id: UUID, eventID: String?, externalID: String?, calendarID: String) {
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
         tasks[index].calendarEventIdentifier = eventID

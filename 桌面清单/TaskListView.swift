@@ -198,8 +198,8 @@ struct TaskListView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            if !isSelecting && Calendar.current.isDateInToday(store.selectedDate) {
-                Button("未完成转明天", action: confirmMove)
+            if !isSelecting && isRecentDay(store.selectedDate) {
+                Button(Calendar.current.isDateInToday(store.selectedDate) ? "未完成转明天" : "未完成转日期", action: confirmMove)
                     .disabled(!dayTasks.contains { !$0.isCompleted } || calendarSync.isWorking)
             }
         }
@@ -311,20 +311,25 @@ struct TaskListView: View {
         let day = store.selectedDate
         let count = store.tasks(on: day).filter { !$0.isCompleted }.count
         let alert = NSAlert()
-        alert.messageText = "将今天的 \(count) 项未完成任务转到明天？"
-        alert.informativeText = "从 09:00 起按当前顺序排期，顺延冲突的未完成任务，两天分别重新编号。"
-        alert.addButton(withTitle: "转到明天")
+        let isToday = Calendar.current.isDateInToday(day)
+        alert.messageText = isToday ? "将今天的 \(count) 项未完成任务转到明天？" : "转移这一天的 \(count) 项未完成任务？"
+        alert.informativeText = isToday ? "从 09:00 起排期，顺延冲突的未完成任务。" : "优先安排在今天剩余的空档，排不下的顺延到明天。"
+        alert.addButton(withTitle: "确认转移")
         alert.addButton(withTitle: "取消")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         do {
-            guard let days = try store.moveUnfinished(on: day) else { return }
+            guard let days = try (isToday ? store.moveUnfinished(on: day) : store.moveHistoricalTasks(on: day)) else { return }
             let sync = NSAlert()
-            sync.messageText = "已转到明天，要同步这两天的任务到 Mac 日历吗？"
-            sync.informativeText = "将两天的任务写入所选日历，已关联的事件按原记录更新。"
-            sync.addButton(withTitle: "同步这两天")
+            sync.messageText = "转移完成，要同步涉及日期的任务到 Mac 日历吗？"
+            sync.informativeText = "将原日期和目标日期的任务写入所选日历，已关联的事件按原记录更新。"
+            sync.addButton(withTitle: "同步到日历")
             sync.addButton(withTitle: "仅保存在清单")
             if sync.runModal() == .alertFirstButtonReturn {
-                Task { await calendarSync.syncTasksToCalendar(from: store, days: days) }
+                let calendar = Calendar.current
+                let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date().startOfDay)!
+                let dates = Set([day.startOfDay, Date().startOfDay, tomorrow.startOfDay])
+                let ids = Set(store.tasks.filter { dates.contains($0.dueDate.startOfDay) }.map(\.id))
+                Task { await calendarSync.syncTasksToCalendar(from: store, days: days, taskIDs: ids) }
             }
         } catch {
             NSAlert(error: error).runModal()
@@ -406,6 +411,12 @@ private struct TaskCalendarSyncPanel: View {
         .background(Color.primary.opacity(0.035))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
+}
+
+private func isRecentDay(_ date: Date, now: Date = Date()) -> Bool {
+    let today = now.startOfDay
+    let earliest = Calendar.current.date(byAdding: .day, value: -7, to: today)!
+    return date.startOfDay >= earliest && date.startOfDay <= today
 }
 
 private struct ReminderTodayView: View {
@@ -536,6 +547,10 @@ private struct ReminderTodayView: View {
                     Text("最近 30 天").foregroundStyle(.secondary)
                 }
                 Spacer()
+                if !isSelecting && isRecentDay(store.selectedDate) {
+                    Button("未完成转日期", action: moveReminders)
+                        .disabled(!items.contains { !$0.isCompleted } || reminderSync.isWorking)
+                }
             }
             .font(.caption)
             .buttonStyle(.borderless)
@@ -639,6 +654,37 @@ private struct ReminderTodayView: View {
             reminderSync.refreshLists()
             reminderSync.loadMonthReminders(containing: store.displayedMonth, appStore: store)
         }
+    }
+
+    private func moveReminders() {
+        let day = store.selectedDate
+        let count = items.filter { !$0.isCompleted }.count
+        let picker = NSDatePicker(frame: NSRect(x: 0, y: 0, width: 200, height: 28))
+        picker.datePickerStyle = .textFieldAndStepper
+        picker.datePickerElements = [.yearMonthDay]
+        let now = Date()
+        let cutoff = Calendar.current.date(bySettingHour: 18, minute: 30, second: 0, of: now)!
+        picker.dateValue = now > cutoff ? Calendar.current.date(byAdding: .day, value: 1, to: now.startOfDay)! : now.startOfDay
+        picker.minDate = now.startOfDay
+        let alert = NSAlert()
+        alert.messageText = "将 \(count) 项未完成事项转到所选日期？"
+        alert.informativeText = "选择目标日期。定时事项保留提醒时间，时间已过则调整到接下来的半点。"
+        alert.accessoryView = picker
+        alert.addButton(withTitle: "确认转移")
+        alert.addButton(withTitle: "取消")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do {
+            let ids = try store.moveHistoricalReminders(on: day, to: picker.dateValue)
+            guard !ids.isEmpty else { return }
+            let sync = NSAlert()
+            sync.messageText = "要同步这些事项到 Mac 提醒事项吗？"
+            sync.informativeText = "已关联的事项会按原记录更新。"
+            sync.addButton(withTitle: "同步事项")
+            sync.addButton(withTitle: "仅保存在清单")
+            if sync.runModal() == .alertFirstButtonReturn {
+                Task { await reminderSync.syncToReminders(from: store, itemIDs: ids) }
+            }
+        } catch { NSAlert(error: error).runModal() }
     }
 
     private func cancelSelection() {

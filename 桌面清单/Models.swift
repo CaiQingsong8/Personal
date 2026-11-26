@@ -738,6 +738,33 @@ enum TaskPlanner {
         }
     }
 
+    static func placeInRemainingDay(_ item: TodoItem, on day: Date, now: Date, into tasks: inout [TodoItem]) -> Bool {
+        let calendar = Calendar.current
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: day.startOfDay)!
+        let cutoff = calendar.date(bySettingHour: 18, minute: 30, second: 0, of: day)!
+        let rounded = startRounded(now)
+        var cursor = TaskScheduleDefaults.outsideLunch(max(rounded, day.startOfDay))
+        let occupied = tasks.filter { $0.hasSpecificTime != false && $0.dueDate < tomorrow && end($0) > cursor }.sorted(by: earlier)
+        for existing in occupied {
+            let finish = TaskScheduleDefaults.endDate(start: cursor, duration: item.calendarDurationSeconds ?? 7200)
+            if finish <= existing.dueDate { break }
+            cursor = TaskScheduleDefaults.outsideLunch(max(cursor, end(existing)))
+        }
+        let finish = TaskScheduleDefaults.endDate(start: cursor, duration: item.calendarDurationSeconds ?? 7200)
+        guard cursor.startOfDay == day.startOfDay, finish <= cutoff,
+              !tooLate(cursor, duration: item.calendarDurationSeconds ?? 7200) else { return false }
+        var placed = item
+        setStart(&placed, cursor)
+        tasks.append(placed)
+        return true
+    }
+
+    private static func startRounded(_ now: Date) -> Date {
+        let dayStart = Calendar.current.startOfDay(for: now)
+        let seconds = now.timeIntervalSince(dayStart)
+        return dayStart.addingTimeInterval(ceil(seconds / 1800) * 1800)
+    }
+
     static func reorderCompletion(_ tasks: inout [TodoItem], on day: Date) {
         let slots = timedIndices(tasks, on: day)
         let order = slots.filter { tasks[$0].isCompleted } + slots.filter { !tasks[$0].isCompleted }

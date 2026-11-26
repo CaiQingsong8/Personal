@@ -405,7 +405,7 @@ final class ReminderSyncService: ObservableObject {
         statusMessage = "已从“\(list.title)”导入：新增 \(added)，更新 \(updated)，删除 \(deletionSummary.removed)，待重试 \(deletionSummary.pending)，冲突 \(conflicts)"
     }
 
-    func syncToReminders(from appStore: AppStore) async {
+    func syncToReminders(from appStore: AppStore, itemIDs: Set<UUID>? = nil) async {
         guard prepareForTransfer(requireWritable: true) else { return }
         guard let destination = selectedList else {
             statusMessage = "请先选择一个可编辑的提醒事项列表"
@@ -421,20 +421,21 @@ final class ReminderSyncService: ObservableObject {
             statusMessage = "读取 Mac 事项失败，请稍后重试；待删除事项已保留"
             return
         }
-        let deletionSummary = syncPendingDeletions(in: appStore, reminders: all)
-        var items = appStore.reminderItems
+        let deletionSummary = itemIDs == nil ? syncPendingDeletions(in: appStore, reminders: all) : ReminderDeletionSummary()
+        let items = appStore.reminderItems
         var created = 0
         var updated = 0
         var moved = 0
         var conflicts = 0
         let now = Date()
         let range = transferRange
-        let eligibleItemCount = items.filter { $0.dueDate >= range.start && $0.dueDate < range.end }.count
+        let eligibleItemCount = items.filter { $0.dueDate >= range.start && $0.dueDate < range.end && (itemIDs == nil || itemIDs!.contains($0.id)) }.count
         var processedItemCount = 0
 
         for index in items.indices {
             let item = items[index]
-            guard item.dueDate >= range.start && item.dueDate < range.end else { continue }
+            guard item.dueDate >= range.start && item.dueDate < range.end, itemIDs == nil || itemIDs!.contains(item.id),
+                  appStore.reminderItems.contains(where: { $0.id == item.id && $0 == item }) else { continue }
             processedItemCount += 1
             let matches = matchingReminders(for: item, in: all)
             guard matches.count <= 1 else { conflicts += 1; continue }
@@ -466,15 +467,13 @@ final class ReminderSyncService: ObservableObject {
 
             do {
                 try eventStore.save(reminder, commit: true)
-                items[index].reminderCalendarItemIdentifier = reminder.calendarItemIdentifier
-                items[index].reminderCalendarItemExternalIdentifier = reminder.calendarItemExternalIdentifier
-                items[index].reminderListIdentifier = reminder.calendar?.calendarIdentifier
-                items[index].reminderSyncedAt = now
+                appStore.recordReminderLink(id: item.id, itemID: reminder.calendarItemIdentifier,
+                                            externalID: reminder.calendarItemExternalIdentifier,
+                                            listID: reminder.calendar?.calendarIdentifier, at: now)
                 if existing == nil { created += 1 }
                 else if shouldMove { moved += 1 }
                 else { updated += 1 }
             } catch {
-                if created + updated + moved > 0 { appStore.applyReminderItems(items) }
                 statusMessage = "写入中断：新增 \(created)，更新 \(updated)，移入所选列表 \(moved)，删除 \(deletionSummary.removed)，待重试 \(deletionSummary.pending)；\(error.localizedDescription)"
                 return
             }
@@ -484,7 +483,6 @@ final class ReminderSyncService: ObservableObject {
                 await Task.yield()
             }
         }
-        if created + updated + moved > 0 { appStore.applyReminderItems(items) }
         statusMessage = "已写入“\(destination.title)”：新增 \(created)，更新 \(updated)，移入所选列表 \(moved)，删除 \(deletionSummary.removed)，待重试 \(deletionSummary.pending)，未安全匹配 \(conflicts)"
     }
 

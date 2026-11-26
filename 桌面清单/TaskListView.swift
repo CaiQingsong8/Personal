@@ -1169,7 +1169,9 @@ struct TaskEditorView: View {
     @State private var showDateCalendar = false
 
     init(task: TodoItem) {
-        _draft = State(initialValue: task)
+        var editableTask = task
+        editableTask.title = TaskPlanner.titleWithoutNumber(task.title)
+        _draft = State(initialValue: editableTask)
         _hasSpecificTime = State(initialValue: task.hasSpecificTime ?? false)
         _durationMinutes = State(initialValue: max(30, Int((task.calendarDurationSeconds ?? 3600) / 60)))
     }
@@ -1272,6 +1274,8 @@ struct TaskEditorView: View {
                         draft.calendarDurationSeconds = nil
                     }
                     draft.completedAt = draft.isCompleted ? (draft.completedAt ?? Date()) : nil
+                    // Preserve typed leading numbers as part of the task name.
+                    draft.title = "① " + draft.title
                     store.updateTask(draft)
                     dismiss()
                 }

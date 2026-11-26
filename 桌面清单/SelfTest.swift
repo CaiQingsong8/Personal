@@ -254,6 +254,16 @@ struct DeskFlowSelfTest {
         _ = try store.moveHistoricalReminders(on: historical, to: day, now: at(day, 23, 59))
         precondition(store.reminderItems[0].dueDate == tomorrow)
 
+        precondition(TaskPlanner.titleWithoutNumber("② 任务名称") == "任务名称")
+        precondition(TaskPlanner.titleWithoutNumber("12. 旧版任务") == "旧版任务")
+        precondition(TaskPlanner.titleWithoutNumber("① 3. 会议") == "3. 会议")
+        store.applyTasks([timed("① 原名称", ten, 1)])
+        var renamed = store.tasks[0]
+        renamed.title = "① 3. 会议"
+        store.updateTask(renamed)
+        precondition(store.tasks[0].title == "① 3. 会议")
+        precondition(TaskPlanner.titleWithoutNumber(store.tasks[0].title) == "3. 会议")
+
         let nextDay = calendar.date(byAdding: .day, value: 1, to: Date().startOfDay)!
         let beforeCutoff = calendar.date(bySettingHour: 0, minute: 59, second: 0, of: nextDay)!
         let cutoff = calendar.date(bySettingHour: 1, minute: 0, second: 0, of: nextDay)!

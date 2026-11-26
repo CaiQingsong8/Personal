@@ -623,6 +623,10 @@ enum TaskPlanner {
 
     private static let prefix = try! NSRegularExpression(pattern: #"^(?:[①-⑳㉑-㉟㊱-㊿]|（[0-9]+）|[0-9]+[.．、](?![0-9]))\s*"#)
 
+    static func titleWithoutNumber(_ title: String) -> String {
+        prefix.stringByReplacingMatches(in: title, range: NSRange(title.startIndex..., in: title), withTemplate: "")
+    }
+
     static func renumber(_ tasks: inout [TodoItem]) {
         let groups = Dictionary(grouping: tasks.indices) { tasks[$0].dueDate.startOfDay }
         for indices in groups.values {
@@ -630,7 +634,7 @@ enum TaskPlanner {
             for (offset, index) in ordered.enumerated() {
                 let n = offset + 1
                 let base = tasks[index].title
-                let text = prefix.stringByReplacingMatches(in: base, range: NSRange(base.startIndex..., in: base), withTemplate: "")
+                let text = titleWithoutNumber(base)
                 let scalar: Int
                 switch n {
                 case 1...20: scalar = 0x2460 + n - 1
